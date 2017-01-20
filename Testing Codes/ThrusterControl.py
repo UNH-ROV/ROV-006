@@ -53,10 +53,14 @@ servo_center = 307
 #hat.setPWM(thruster7, 0, servo_center)
 
 def drive(x, y, z)
-    """ Move in the specified direction. This is a relative vector. """
-    # We'll need to implement this.
+    """ Move in the specified direction. This is a relative vector.
+    This willlikely eventually be the "high level control"
+    """
+    # We'll need to implement this. Can the ROV drive directly left without turning?
     #hat.setPWM(thruster0, 0, center + Value)
 
 def rotate(x, y, z)
-    """ Rotate to the given Euler rotation. Fun maths computation ahead :D!
+    """ Rotate to the given direction.
     """
+    # NOTE: Our controller will be sending (x, y) coordinates of stick positions. I imagine
+    # it would be much easier converting that to a relevant angle and rotating on that.

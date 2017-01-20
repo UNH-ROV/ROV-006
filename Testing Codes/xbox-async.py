@@ -42,13 +42,10 @@ class Joystick:
 
         return self
 
-    async def init(self):
-        while True:
-            line = await self.proc.stdout.readline()
-            if line:
-                self.call_handlers(line)
-            else:
-                break
+    async def read(self):
+        line = await self.proc.stdout.readline()
+        if line:
+            self.call_handlers(line)
 
         return self
 
@@ -171,7 +168,8 @@ async def example():
     joy.onButton(Button.A, lambda: print('A pressed'))
     joy.onButton(Button.LStick, lambda x, y: print('Stick at %f, %f' % (x, y)))
     joy.onButton(Button.LTrigger, lambda x: print('Trigger at %f' % x))
-    joy = await joy.init()
+    while True:
+        joy = await joy.read()
     joy.close()
 
 if __name__ == "__main__":
