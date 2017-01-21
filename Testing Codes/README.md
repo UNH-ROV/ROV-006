@@ -2,8 +2,10 @@
 
 Just a dump of various codes. Ideally one would use a testing branch, but.
 
-# Ideas
+# Thoughts and Ideas
 Just some thoughts I run into.
+
+In so far I've used asyncio. I just wanted to play with it and I'm sure future ROV developers will curse me for it.
 
 Initialization:
 * A badass plan:

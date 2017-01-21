@@ -1,4 +1,9 @@
 #!/usr/bin/env python3
+""" Logic for the master device controlling the ROV.
+Current setup:
+    Send a UDP message to the TARGET_HOST on PORT every UDP_RATE ms. The packet
+    will hold the controller state.
+"""
 import xbox_async
 from xbox_async import Button
 import asyncio
@@ -9,41 +14,42 @@ import socket
 import json
 
 PORT=30002
-TARGET_HOST="192.168.1.166"
-UDP_RATE=20     # 20 ms between each data packet
+TARGET_HOST="127.0.0.1"
+UDP_RATE=50     # ms between each datagram. 50 = 20 packets/s
 
 # This will be modified by the xbox button handlers
 controller_info = {}
 
-def positionStickHandle(x, y):
+def stick_l(x, y):
     global controller_info
-
     controller_info["pos_x"] = x
     controller_info["pos_y"] = y
 
-def rotationStickHandle(x, y):
+def stick_r(x, y):
     global controller_info
-
     controller_info["rot_x"] = x
     controller_info["rot_y"] = y
 
+def read_temp():
+    global controller_info
+    controller_info["get_temp"] = 1
+
 """Read xbox controller information.
 """
-async def controllerOutput():
+async def controller_output():
     joy = await xbox_async.Joystick.create()
-    joy.onButton(Button.LStick, positionStickHandle)
-    joy.onButton(Button.RStick, rotationStickHandle)
+    joy.on_button(Button.LStick, stick_l)
+    joy.on_button(Button.RStick, stick_r)
+    joy.on_button(Button.A, read_temp)
 
     while True:
-        # TODO: See if joy.read() blocks
         joy = await joy.read()
-        print("Hi")
 
     joy.close()
 
 """Send UDP packet through given transport of some global data every interval(ms)
 """
-async def sendData(transport, interval):
+async def send_data(transport, interval):
     global controller_info
     while True:
         await asyncio.sleep(interval / 1000.0)
@@ -54,13 +60,12 @@ async def sendData(transport, interval):
         # Otherwise we can specify it.
         transport.sendto(controller_info_json.encode())
 
+        if "get_temp" in controller_info:
+            del controller_info["get_temp"]
+
 """Implement callbacks for asyncio transports
 """
-class clientprotocol:
-    def __init__(self, loop):
-        self.loop = loop
-        self.transport = none
-
+class ClientProtocol:
     def connection_made(self, transport):
         self.transport = transport
 
@@ -79,13 +84,14 @@ if __name__ == "__main__":
 
     # Init UDP transport channel
     connect = loop.create_datagram_endpoint(
-        lambda: ClientProtocol(loop),
+        ClientProtocol,
         remote_addr=(TARGET_HOST, PORT))
-    loop.run_until_complete(connect)
+    transport, protocol = loop.run_until_complete(connect)
 
     tasks = [
-        asyncio.ensure_future(controllerOutput()),
-        asyncio.ensure_future(sendData(transport, UDP_RATE))
+        # Even though there is no UDP listener task, received packets will be handled
+        asyncio.ensure_future(controller_output()),
+        asyncio.ensure_future(send_data(transport, UDP_RATE))
     ]
 
     loop.run_until_complete(asyncio.gather(*tasks))

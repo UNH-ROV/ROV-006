@@ -1,25 +1,28 @@
 #!/usr/bin/env python3
-import socket
+""" Logic for the ROV.
+"""
+import asyncio
 import json
+import signal
+import sys
 
-import ThrusterControl.py
+#import bar30
+#import ThrusterControl
 
 PORT=30002
 
 def handle_data(data):
     print(data)
-    if data["pos_x"]:
-        print("pos_x: %d", data["pos_x"])
-    if data["pos_y"]:
-        print("pos_y: %d", data["pos_y"])
+    if "pos_x" in data:
+        print("pos_x: %d" % data["pos_x"])
+    if "pos_y" in data:
+        print("pos_y: %d" % data["pos_y"])
+    if "get_temp" in data:
+        print("GET TEMPERATURE!!!!")
 
 """Implement callbacks for asyncio transports
 """
-class clientprotocol:
-    def __init__(self, loop):
-        self.loop = loop
-        self.transport = none
-
+class ClientProtocol:
     def connection_made(self, transport):
         self.transport = transport
 
@@ -31,7 +34,6 @@ class clientprotocol:
     def error_received(self, exc):
         print('error:', exc)
 
-# Control for the ROV.
 if __name__ == "__main__":
     # Create event loop for both Windows/Unix. I'm not sure if the entire code base is cross-platform
     if sys.platform == "win32":
@@ -40,15 +42,16 @@ if __name__ == "__main__":
     else:
         loop = asyncio.get_event_loop()
 
-    loop.add_signal_handler(signal.SIGINT, lambda: loop.stop())
-
     # Init UDP transport channel
     connect = loop.create_datagram_endpoint(
-        lambda: ClientProtocol(loop))
-    loop.run_until_complete(connect)
+        ClientProtocol,
+        local_addr = ('127.0.0.1', PORT))
+    transport, protocol = loop.run_until_complete(connect)
 
-    # Do stuff here.
-    # loop.run_forever()
+    # Init bar30
+    #temp_bar = Bar30()
+
+    loop.run_forever()
 
     transport.close()
     loop.close()
