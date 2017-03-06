@@ -112,7 +112,7 @@ class Bar30:
         SENS2 = SENS - SENS2
 
         pressure = ((((D1 * SENS2) / 2097152) - OFF2) / 8192) / 10.0
-        tempC = TEMP / 100.0
-        #tempF = tempC * 1.8 + 32
+        temp_c = TEMP / 100.0
+        #tempF = temp_c * 1.8 + 32
 
-        return (tempC, pressure)
+        return (temp_c, pressure)

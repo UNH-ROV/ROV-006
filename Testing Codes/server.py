@@ -20,10 +20,19 @@ UDP_RATE=50     # ms between each datagram. 50 = 20 packets/s
 # This will be modified by the xbox button handlers
 controller_info = {}
 
+class ClientProtocol:
+    """ Implement callbacks for asyncio transports
+    """
+    def connection_made(self, transport):
+        self.transport = transport
+
+    def error_received(self, exc):
+        print('error:', exc)
+
 def stick_l(x, y):
     global controller_info
-    controller_info["pos_x"] = x
-    controller_info["pos_y"] = y
+    controller_info["joy_x"] = x
+    controller_info["joy_y"] = y
 
 def stick_r(x, y):
     global controller_info
@@ -34,10 +43,10 @@ def read_temp():
     global controller_info
     controller_info["get_temp"] = 1
 
-"""Read xbox controller information.
-"""
 async def controller_output():
-    joy = await xbox_async.Joystick.create()
+    """Read xbox controller information.
+    """
+    joy = await xbox_async.Joystick.create(normalize=True)
     joy.on_button(Button.LStick, stick_l)
     joy.on_button(Button.RStick, stick_r)
     joy.on_button(Button.A, read_temp)
@@ -47,12 +56,15 @@ async def controller_output():
 
     joy.close()
 
-"""Send UDP packet through given transport of some global data every interval(ms)
-"""
 async def send_data(transport, interval):
+    """Send UDP packet through given transport of some global data every interval(ms)
+    I am a bit cautious of packet sizes, but it likely won't matter.
+    """
     global controller_info
+
     while True:
         await asyncio.sleep(interval / 1000.0)
+
         # Package all the global vars into JSON and send it.
         controller_info_json = json.dumps(controller_info)
 
@@ -60,17 +72,10 @@ async def send_data(transport, interval):
         # Otherwise we can specify it.
         transport.sendto(controller_info_json.encode())
 
+
+        # Send certain messages only one time
         if "get_temp" in controller_info:
             del controller_info["get_temp"]
-
-"""Implement callbacks for asyncio transports
-"""
-class ClientProtocol:
-    def connection_made(self, transport):
-        self.transport = transport
-
-    def error_received(self, exc):
-        print('error:', exc)
 
 if __name__ == "__main__":
     # Create event loop for both Windows/Unix. I'm not sure if the entire code base is cross-platform
