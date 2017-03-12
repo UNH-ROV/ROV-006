@@ -68,6 +68,8 @@ async def control_thruster(interval):
         if "rot_y" in data:
             thrusters.move_pitch(controller_info["rot_y"])
 
+        thrusters.driver()
+
 async def get_temp():
     """ Gets temperature and prints it out.
     """

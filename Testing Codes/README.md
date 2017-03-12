@@ -21,7 +21,7 @@ Initialization:
     * Statically defined IPv4 addresses.
 
     This was how the ROV was setup in the past. We simply used the pre-defined IPv4 link-local address already
-    defined on the devices. 169.254.0.0/16 addresses. I'm hesitant to use these because I'm not sure if they always
+    on the devices. 169.254.0.0/16 addresses. I'm hesitant to use these because I'm not sure if they always
     exist.
 
     * IPv6
