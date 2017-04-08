@@ -36,10 +36,12 @@ MESSAGE_SIZE = 24
 class IMU(serial.Serial):
     def __init__(self, dev, rate):
         serial.Serial.__init__(self, dev, rate)
-        time.sleep(3)
+        time.sleep(2) # This should be more than 1 second.
 
         self.write(b'#b')
         self.flush()
+        self.flushInput() # Deprecated 
+        #self.reset_input_buffers() New version
 
     def read_bin(self):
         """ Expects the sensor to output binary data. """
@@ -73,5 +75,6 @@ if __name__ == '__main__':
 
         print("A: {}".format(accel))
         print("G: {}".format(gyro))
+        #print(imu.read_text())
 
         time.sleep(random.random() * 0.1 + 0.1)

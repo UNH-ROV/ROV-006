@@ -2,7 +2,9 @@
 
 // Use ROLLING_AVG_COUNT previous values to determine the average
 #define ROLLING_AVG_COUNT 8
-struct Vector3 prev_accel_data[ROLLING_AVG_COUNT - 1] = {{ }}; // Assume 0 accel initialized.
+
+// These data structures assume we start at 0 acceleration
+struct Vector3 prev_accel_data[ROLLING_AVG_COUNT - 1] = {{ }};
 int prev_accel_idx = 0;
 
 struct Vector3 prev_gyro_data[ROLLING_AVG_COUNT - 1] = {{ }};

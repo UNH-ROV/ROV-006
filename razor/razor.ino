@@ -123,12 +123,15 @@ void sensors_fix(struct Vector3 *accel_fixed, struct Vector3 *gyro_fixed) {
     gyro_fixed->z = gyro.z - GYRO_AVERAGE_OFFSET_Z;
 }
 
-// Prints the current values of the sensors 
+// Prints the current values of the sensors
 void sensors_output()
 {
     struct Vector3 accel_out = accel;
     struct Vector3 gyro_out = gyro;
     sensors_fix(&accel_out, &gyro_out);
+
+    //accel_out = rolling_accel(accel_out);
+    //gyro_out = rolling_gyro(gyro_out);
 
     if (output_format == OUTPUT__FORMAT_TEXT) {
         Serial.print("#A");
@@ -140,6 +143,8 @@ void sensors_output()
         Serial.print(gyro_out.x); Serial.print(",");
         Serial.print(gyro_out.y); Serial.print(",");
         Serial.print(gyro_out.z);
+
+        Serial.print("\r\n");
     } else {
         // Structs are not densely packed.
         Serial.write((byte *) &accel_out.x, 4);

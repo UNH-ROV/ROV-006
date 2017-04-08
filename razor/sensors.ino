@@ -4,16 +4,15 @@
 
 // Sensor I2C addresses
 #define ACCEL_ADDRESS ((int16_t) 0x53) // 0x53 = 0xA6 / 2
-#define MAGN_ADDRESS  ((int16_t) 0x1E) // 0x1E = 0x3C / 2
 #define GYRO_ADDRESS  ((int16_t) 0x68) // 0x68 = 0xD0 / 2
 
 // Arduino backward compatibility macros
 #if ARDUINO >= 100
-  #define WIRE_SEND(b) Wire.write((byte) b) 
-  #define WIRE_RECEIVE() Wire.read() 
+  #define WIRE_SEND(b) Wire.write((byte) b)
+  #define WIRE_RECEIVE() Wire.read()
 #else
   #define WIRE_SEND(b) Wire.send(b)
-  #define WIRE_RECEIVE() Wire.receive() 
+  #define WIRE_RECEIVE() Wire.receive()
 #endif
 
 #include <Wire.h>
@@ -50,7 +49,7 @@ void accel_read()
     int i = 0;
     uint8_t buff[6];
 
-    Wire.beginTransmission(ACCEL_ADDRESS); 
+    Wire.beginTransmission(ACCEL_ADDRESS);
     WIRE_SEND(0x32);  // Send address to read from
     Wire.endTransmission();
 
@@ -111,7 +110,7 @@ void gyro_read()
     int i = 0;
     uint8_t buff[6];
 
-    Wire.beginTransmission(GYRO_ADDRESS); 
+    Wire.beginTransmission(GYRO_ADDRESS);
     WIRE_SEND(0x1D);  // Sends address to read from
     Wire.endTransmission();
 
