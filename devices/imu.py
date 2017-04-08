@@ -12,12 +12,17 @@
 
       Transformation order: first yaw then pitch then roll.
 
-  "#oscb" - Output CALIBRATED SENSOR data of all 9 axes in BINARY format.
-  "#s<xy>" - Request synch token - useful to find out where the frame boundaries are in a continuous
-         binary stream or to see if tracker is present and answering. The tracker will send
-  "#SYNCH<xy>\r\n" in response (so it's possible to read using a readLine() function).
-     x and y are two mandatory but arbitrary bytes that can be used to find out which request
-     the answer belongs to.
+   Serial commands that the firmware understands:
+   "#b" - Output sensors in BINARY format - acc, gyro (3 floats for each sensor so output frame is 24 bytes)
+   "#t" - Output angles in TEXT format (Output frames have form like "#ACC=-142.28,-5.38,33.52#GYR=-142.28,-5.38,33.52#GYR
+   followed by carriage return and line feed [\r\n]).
+
+   "#f" - Request one output frame - Sensors only update internally every 20ms(50Hz)
+
+   Newline characters are not required. So you could send "#b#f", which
+   would set binary output mode, and fetch
+
+   Byte order of binary output is little-endian: least significant byte comes first.
 """
 import serial
 import struct
@@ -26,59 +31,47 @@ import time
 SERIAL_DEV = '/dev/ttyUSB0'
 SERIAL_BAUD = 57600
 WRITE_WAIT = 0.01
-MESSAGE_SIZE = 36
+MESSAGE_SIZE = 24
 
 class IMU(serial.Serial):
     def __init__(self, dev, rate):
         serial.Serial.__init__(self, dev, rate)
         time.sleep(3)
 
-        #self.write(b'#o0#ob')
-        self.write(b'#o0#oscb#sab')
+        self.write(b'#b')
         self.flush()
-        time.sleep(WRITE_WAIT) # Wait for write
 
-        # Read lines until the sync token is received
-        while True:
-            line = self.readline();
-            if line.endswith(b'#SYNCHab\r\n'):
-                break
-
-    def get_sensors(self):
-        """ Expects the IMU to be configured to output all sensor data. """
+    def read_bin(self):
+        """ Expects the sensor to output binary data. """
         self.write(b'#f')
         self.flush()
-        time.sleep(WRITE_WAIT) # Wait for write
+        time.sleep(WRITE_WAIT)
 
-        line = self.read(MESSAGE_SIZE)
-        # 9 little endian floats
-        unpacked = struct.unpack('<fffffffff', line)
+        line = self.read(24)
+        unpacked = struct.unpack('<ffffff', line)
 
-        # accel, mag, gyro
-        return unpacked[0:3], unpacked[3:6], unpacked[6:9]
+        return unpacked[0:3], unpacked[3:6]
+
+    def read_text(self):
+        """ Briefly enters text output and returns reply."""
+        self.write(b'#t#f#b')
+        self.flush()
+        time.sleep(WRITE_WAIT)
+
+        return self.readline()
 
 if __name__ == '__main__':
-    """ Poll the imu at random intervals and plot stuff.
-        Print the rolling accel average.
+    """ Poll the imu at random intervals and output the values.
         The internal poll rate of the firmware is 20ms(50Hz)
         so polling faster than that is pointless
     """
     import random
     imu = IMU(SERIAL_DEV, SERIAL_BAUD)
 
-    avgX = 0.0
-    avgY = 0.0
-    avgZ = 0.0
-    count = 0
-    start_time = time.time()
     while True:
-        accel, mag, gyro = imu.get_sensors()
-        avgX = (avgX * count + accel[0]) / (count + 1)
-        avgY = (avgY * count + accel[1]) / (count + 1)
-        avgZ = (avgZ * count + accel[2]) / (count + 1)
-        count += 1
+        accel, gyro = imu.read_bin()
 
-        print(accel)
-        print(gyro)
-        print("Average Accel: {}, {}, {}".format(avgX, avgY, avgZ))
+        print("A: {}".format(accel))
+        print("G: {}".format(gyro))
+
         time.sleep(random.random() * 0.1 + 0.1)
