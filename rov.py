@@ -17,7 +17,7 @@ from devices.light import Light
 from devices.t100 import Thrusters
 
 # Converts the IMU's unit to m/s
-ACCEL_CONVERSION = 256 / 9.8
+ACCEL_CONVERSION = 9.8 / 256
 
 SERIAL_DEV = '/dev/ttyUSB0'
 SERIAL_BAUD = 57600
@@ -27,9 +27,8 @@ THRUSTER_RATE=100     # ms between each thruster signal. 50 = 20 signals/s
 PWM_FREQ = 48
 CONTROLLER_DEADZONE=0.2
 LIGHT_PIN = 15
+PACKET_TIMEOUT = 1.5 # secs before stop moving
 # Pins for thrusters are defined in the thruster module; Sorry! it's 8 pins!
-
-COMMAND_LIMIT = 1 # seconds between each command. i.e. temp sensor
 
 # Updated by handle_data method
 controller_info = {
@@ -42,6 +41,7 @@ controller_info = {
 }
 hlcontroller = hlcontroller.HLController(hlcontroller.PID())
 autonomy = False
+prev_packet_time = 0
 
 class UDP:
     """Implement callbacks for asyncio transports
@@ -55,10 +55,13 @@ class UDP:
         self.transport = transport
 
     def datagram_received(self, data, addr):
+        global prev_packet_time
+
         data_json = data.decode()
         try:
             data = json.loads(data_json)
             handle_udpdata(data, self.loop, self.pwm)
+            prev_packet_time = time.time()
         except json.JSONDecodeError:
             print("Received invalid packet.")
             pass    # Ignore non JSON packets
@@ -153,17 +156,20 @@ def light_toggle(pwm):
 @asyncio.coroutine
 def manual_loop(interval, thrusters):
     """ Reads controller_info and sends the proper command to ThrusterControl library. """
-    global controller_info, autonomy
+    global controller_info, autonomy, prev_packet_time
 
     while True:
         yield from asyncio.sleep(interval / 1000.0)
         if not autonomy:
+            curr_time = time.time()
             thrusters.move_horizontal(controller_info["lx"])
             thrusters.move_forward(controller_info["ly"])
             thrusters.move_vertical(controller_info["lt"] - controller_info["rt"])
             thrusters.move_yaw(-controller_info["rx"]) # Flipped to map xbox state to ROV coordinate
             thrusters.move_pitch(controller_info["ry"])
 
+            if curr_time - prev_packet_time > PACKET_TIMEOUT:
+                thrusters.clear_weights()
             thrusters.drive()
 
 def remove_gravity(accel):
@@ -184,6 +190,7 @@ def auto_loop(interval, thrusters):
         yield from asyncio.sleep(interval / 1000.0)
 
         accel, mag, gyro = imu.get_sensors()
+        accel = remove_gravity(accel)
 
         weights = hlcontroller.update(accel, gyro)
 
@@ -198,9 +205,9 @@ def auto_loop(interval, thrusters):
 
         #thrusters.drive()
 
-
-
-        print("Pos:{}".format(hlcontroller.position * ACCEL_CONVERSION))
+        #print("Acc: {}".format(accel))
+        #print("Vel: {}".format(hlcontroller.velocity * ACCEL_CONVERSION))
+        #print("Pos: {}".format(hlcontroller.position * ACCEL_CONVERSION))
 
 if __name__ == "__main__":
     loop = asyncio.get_event_loop()
