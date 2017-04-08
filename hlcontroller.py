@@ -20,6 +20,7 @@ class HLController:
     def update(self, accel, gyro):
         """
         Given accelerometer and gyro data, update internal state
+        Delta_time is based on last time this functio nwas called
         Returns controller output.
         """
         accelx, accely, accelz = accel
@@ -42,12 +43,27 @@ class HLController:
         self.time = curr_time
         return output
 
+    def update_controller(controller):
+        if controller.__class__ == self.controller.__class__:
+            if isinstance(controller, PID):
+                self.controller.kP = controller.kP
+                self.controller.kI = controller.kI
+                self.controller.kD = controller.kD
+            if isinstance(controller, LQR):
+                self.controller.Q = controller.Q
+                self.controller.R = controller.R
+        else:
+            self.controller = controller
+            if isinstance(controller, PID):
+                self.controller.goal = self.goalPos
 
 class LQR:
-    def __init__(self):
+    def __init__(self, q=numpy.identity(6), r=numpy.identity(6)):
         self.K = 3
+        self.Q = q
+        self.R = r
 
-    def solve(A,B,Q,R):
+    def solve(A, B):
         """
         x[k+1] = A x[k] + B u[k]
 
@@ -56,14 +72,14 @@ class LQR:
         #ref Bertsekas, p.151
 
         #first, try to solve the ricatti equation
-        X = np.matrix(scipy.linalg.solve_discrete_are(A, B, Q, R))
+        X = np.matrix(scipy.linalg.solve_discrete_are(A, B, self.Q, self.R))
 
         #compute the LQR gain
-        K = np.matrix(scipy.linalg.inv(B.T*X*B+R)*(B.T*X*A))
+        K = np.matrix(scipy.linalg.inv(B.T*X*B+R)*(B.T * X * A))
 
-        eigVals, eigVecs = scipy.linalg.eig(A-B*K)
+        #eigVals, eigVecs = scipy.linalg.eig(A-B*K)
 
-        return K, X, eigVals
+        return K
 
 class PID:
     """ PID controller over 6 values

@@ -21,6 +21,7 @@ The pin locations for many of the devices should also be changed should this be 
 ## Python Packages
 * gbulb
 * adafruit-pca9685
+* pyserial
 * And others!
 
 # Additional Technical Notes
@@ -60,3 +61,10 @@ These are the steps I took. They likely WON'T apply to other systems.
 3. `usbip bind -b <busid>` On ROV, choose a device from the list and bind usb device.
 4. `modprobe vhci-hcd` On station
 5. `/usr/lib/linux-tools/$(uname -r)/usbip attach -r 192.168.0.15 -b 1-1.5` On station, mount the usb
+
+## Running station as non-root user
+Adds a udev rule that allows users in the input group to access usb devices
+
+`/etc/udev/rules.d/99-xbox.rules`
+
+`SUBSYSTEM=='usb',GROUP='input',MODE='0666'`
