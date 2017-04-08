@@ -91,7 +91,7 @@ class PID:
 
         self.prev_error = error
 
-        print(error)
+        #print(error)
         #print("{} {} {}".format(p, i, d))
 
         return p + i + d

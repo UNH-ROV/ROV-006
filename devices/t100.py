@@ -27,6 +27,7 @@ PWM_FREQ = 48
 SERVO_CENTER = 307
 
 # These weights dictate which thrusters get turned on when we want to apply the particular vector
+# Some thrusters fire in reverse which explains some strange negative values.
 WEIGHTS_BIAS       = np.array([-1.0, 1.0, 1.0, -1.0, 1.0, 1.0, 1.0, -1.0], float)
 WEIGHTS_FORWARD    = np.array([1.0, 1.0, 0.0, 0.0, 1.0, 1.0, 0.0, 0.0], float)   # positive forward
 WEIGHTS_HORIZONTAL = np.array([1.0, -1.0, 0.0, 0.0, 1.0, -1.0, 0.0, 0.0], float) # positive right
@@ -95,6 +96,7 @@ class Thrusters:
     def drive(self):
         """ Send PWM signal to thrusters.
             Sum the weight vectors of each direction of interest to get weights for the resulting vector.
+            Returns the weight to each thrusters
 
         """
         weights_sum = self.weights_forward + self.weights_horizontal + self.weights_vertical + self.weights_pitch + self.weights_yaw + self.weights_roll
@@ -102,7 +104,7 @@ class Thrusters:
             #if weights_sum[i] < WEIGHT_MIN:
                 #weights_sum[i] = 0
 
-        print(weights_sum)
+        #print("Thruster weights: {}".format(weights_sum))
 
         # Sign mod
         weights_sum *= WEIGHTS_BIAS
@@ -117,11 +119,10 @@ class Thrusters:
         for i in range(0, NUM_THRUSTERS):
             signal = int(SERVO_CENTER + weights_sum[i])
 
-            # Test this before sending it out. wouldn't want to fry anything (If that's even possible).
             #print("Thruster %d gets %d" % (i, signal))
             self.pwm.set_pwm(THRUSTER_PINS[i], 0, signal)
 
-        #self.clear_weights()
+        return weights_sum
 
     def set_pwm(self, pin, channel, value):
         """ Send PWM signal directly to thrusters. Used for debugging. """

@@ -16,6 +16,9 @@ from devices.imu import IMU
 from devices.light import Light
 from devices.t100 import Thrusters
 
+# Converts the IMU's unit to m/s
+ACCEL_CONVERSION = 256 / 9.8 
+
 SERIAL_DEV = '/dev/ttyUSB0'
 SERIAL_BAUD = 57600
 LOCAL_ADDR="192.168.0.15"
@@ -42,7 +45,7 @@ autonomy = False
 
 class UDP:
     """Implement callbacks for asyncio transports
-        Use to receive controller info
+       Used to update controller_info
     """
     def __init__(self, loop, pwm):
         self.loop = loop
@@ -97,7 +100,7 @@ class TCP(asyncio.Protocol):
         print("Received: {}".format(data))
         if data == 'temp':
             pressure, temp = get_temp()
-            self.transport.write("T: {}mbar, P: {}C".format(temp, pressure).encode())
+            self.transport.write("T: {}C, P: {}mbar".format(temp, pressure).encode())
         elif data == 'light':
             print("Toggle light!")
             #light_toggle(self.pwm)
@@ -117,7 +120,6 @@ def get_temp():
     """
     try:
         bar = get_temp.temp_bar
-        sock = get_temp.sock
     except AttributeError:
         # This was the first time this function was run.
         # Initialize all static vars.
@@ -125,6 +127,7 @@ def get_temp():
         get_temp.temp_bar = ms5837.MS5837()
         if not get_temp.temp_bar.init():
             print("Sensor failed to initialize")
+        bar = get_temp.temp_bar
 
     bar.read()
 
@@ -137,6 +140,7 @@ def light_toggle(pwm):
     try:
         light_toggle.toggle()
     except AttributeError:
+        print("Initializing light.")
         light = Light(pwm, LIGHT_PIN)
         light.set_on()
         light.toggle()
@@ -168,7 +172,7 @@ def auto_loop(interval, thrusters):
         yield from asyncio.sleep(interval / 1000.0)
 
         accel, mag, gyro = imu.get_sensors()
-        accel = bad_calibration(accel)
+
         weights = hlcontroller.update(accel, gyro)
 
         if autonomy:
@@ -182,11 +186,8 @@ def auto_loop(interval, thrusters):
         thrusters.drive()
 
 
-        print("Pos:{}, Vel{}".format(hlcontroller.position, hlcontroller.velocity))
-
-def bad_calibration(accel):
-    out_acc = (accel[0] + 3.0, accel[1] - 6.1, accel[2] - 212)
-    return out_acc
+        #print(accel)
+        #print("Pos:{}, Vel{}".format(hlcontroller.position, hlcontroller.velocity))
 
 if __name__ == "__main__":
     loop = asyncio.get_event_loop()
