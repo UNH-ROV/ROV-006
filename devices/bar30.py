@@ -58,12 +58,12 @@ class Bar30:
         data = self.bus.read_i2c_block_data(0x76, 0xAC, 2)
         self.C6 = data[0] * 256 + data[1]
 
-    """ Returns (temperature, pressure). Temp is in Celsius.
-    The two can't really by seperated because they are dependant on each other!
-    Chains into a sleep. So likely dump this in its own task.
-    """
     @asyncio.coroutine
     def read_bar(self):
+        """ Returns (temperature, pressure). Temp is in Celsius.
+        The two can't really by seperated because they are dependant on each other!
+        Chains into a lengthy sleep. So likely dump this in its own task.
+        """
         # MS5837_30BA01 address, 0x76(118)
         #		0x40(64)	Pressure conversion(OSR = 256) command
         self.bus.write_byte(0x76, 0x40)

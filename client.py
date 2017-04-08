@@ -10,9 +10,10 @@ import sys
 import time
 import Adafruit_PCA9685
 
-from bar30 import Bar30
-from light import Light
-from thruster_manager import Thrusters
+from devices.bar30 import Bar30
+from devices.imu import IMU
+from devices.light import Light
+from devices.t100 import Thrusters
 
 SERIAL_DEV = '/dev/ttyUSB0'
 SERIAL_BAUD = 57600
@@ -23,6 +24,7 @@ THRUSTER_RATE=100     # ms between each thruster signal. 50 = 20 signals/s
 PWM_FREQ = 48
 CONTROLLER_DEADZONE=0.2
 LIGHT_PIN = 15
+# Pins for thrusters are defined in the thruster module; Sorry! it's 8 pins!
 
 COMMAND_LIMIT = 1 # seconds between each command. i.e. temp sensor
 
@@ -89,14 +91,17 @@ def handle_data(data, loop, pwm):
         curr_time = time.time()
         if controller_info["a"] and curr_time - temp_time > COMMAND_LIMIT:
             loop.create_task(get_temp())
-        if controller_info["y"] and curr_time - temp_time > COMMAND_LIMIT:
-            loop.create_task(light_command(pwm))
+            temp_time = curr_time
+        if controller_info["y"] and curr_time - light_time > COMMAND_LIMIT:
+            loop.create_task(light_toggle(pwm))
+            light_time = curr_time
 
 @asyncio.coroutine
 def control_thruster(interval, pwm):
     """ Reads controller_info and sends the proper command to ThrusterControl library. """
     global controller_info
     thrusters = Thrusters(pwm)
+    imu = IMU(SERIAL_DEV, SERIAL_BAUD)
 
     while True:
         yield from asyncio.sleep(interval / 1000.0)
@@ -109,8 +114,9 @@ def control_thruster(interval, pwm):
 
         thrusters.drive()
 
+
 @asyncio.coroutine
-def light_command(pwm):
+def light_toggle(pwm):
     # If light hasn't been initialized, init it
     global light
     try:
@@ -126,7 +132,6 @@ def get_temp():
     """ Gets temperature and prints it out.
     """
     global temp_bar, sock
-    print("Trying to get thruster data.")
     # Check if things have been initialized
     try:
         temp_bar
@@ -142,14 +147,6 @@ def get_temp():
 
     sock.send(("T:%f,P:%f" % (temp_c, pressure)).encode())
     #print("Temp: %f, Pressure = %f" % (temp_c, pressure))
-
-def get_imu():
-    """ IMU data is on serial so just read from that. """
-    ser = serial.Serial(SERIAL_DEV, SERIAL_BAUD, 6)
-    ser.flushInput()
-    ser.flushOutput()
-
-    ser.readline()
 
 if __name__ == "__main__":
     # Create event loop for both Windows/Unix. I'm not sure if the entire code base is cross-platform
