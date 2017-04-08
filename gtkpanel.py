@@ -19,9 +19,10 @@ def boxed_entry(label, value):
 class ROVPanel(Gtk.Window):
     """ Gtk window for setting parameters in the ROV's high level controls.
     """
-    def __init__(self):
-        Gtk.Window.__init__(self, title="ROV controls station")
+    def __init__(self, socket):
+        Gtk.Window.__init__(self, title="ROV station")
         self.set_border_width(10)
+        self.socket = socket
 
         self.controls_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
 
@@ -67,14 +68,33 @@ class ROVPanel(Gtk.Window):
         self.controls_box.pack_start(button_box, True, True, 3)
 
         self.add(self.controls_box)
+        self.connect("delete-event", Gtk.main_quit)
+        self.show_all()
 
     def on_pid_clicked(self, button):
-        print("P: {}, I: {}, D: {}".format(self.pid['p'].get_value(), self.pid['i'].get_value(), self.pid['d'].get_value()))
+        data = {
+            'p': self.pid['p'].get_value(),
+            'i': self.pid['i'].get_value(),
+            'd': self.pid['d'].get_value()
+        }
+        output = "pid" + json.dumps(data)
+
+        self.socket.write(output.encode())
+        print("P: {}, I: {}, D: {}".format(self.pid['p'].get_value(), self.pid[
+            'i'].get_value(), self.pid['d'].get_value()))
 
     def on_lqr_clicked(self, button):
+        data = {
+            'q': self.lqr['q'].get_value(),
+            'r': self.lqr['r'].get_value(),
+        }
+        output = "lqr" + json.dumps(data)
+
+        self.socket.write(output.encode())
         print("Q: {}, R: {}".format(self.lqr['q'].get_value(), self.lqr['r'].get_value()))
 
-win = ROVPanel()
-win.connect("delete-event", Gtk.main_quit)
-win.show_all()
-Gtk.main()
+if __name__ == "__main__":
+    win = ROVPanel()
+    win.connect("delete-event", Gtk.main_quit)
+    win.show_all()
+    Gtk.main()

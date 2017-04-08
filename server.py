@@ -14,11 +14,11 @@ import time
 import socket
 import json
 import gbulb
-
 gbulb.install()
 
+from gtkpanel import ROVPanel
+
 PORT=30002
-LOCAL_ADDR="192.168.0.14"
 TARGET_ADDR="192.168.0.15"
 UDP_RATE=50     # ms between each datagram. 50 = 20 packets/s
 COMMAND_LIMIT = 1 # seconds between each command. i.e. temp sensor
@@ -32,6 +32,7 @@ controller_info = {
     "lt" : 0.0,
     "rt" : 0.0,
 }
+rov_tcp_sock = None
 
 class UDP:
     """ Implement callbacks for asyncio transports.
@@ -45,11 +46,14 @@ class UDP:
 
 class TCP(asyncio.Protocol):
     """ Implement callbacks for asyncio transports.
-        Our implementation has one-way communication for controller states.
+        prints received data
     """
     def connection_made(self, transport):
         print("TCP connection established")
         self.transport = transport
+
+    def data_received(self, data):
+        print(data.decode())
 
     def error_received(self, exc):
         print('TCP connection error:', exc)
@@ -78,9 +82,9 @@ def req_temp():
     except AttributeError: req_temp.time = 0
 
     curr_time = time.time()
-    if curr_time - req_time.time > COMMAND_LIMIT:
-        transport.write("temp".encode())
-    req_time.time = curr_time
+    if curr_time - req_temp.time > COMMAND_LIMIT:
+        rov_tcp_sock.write("temp".encode())
+    req_temp.time = curr_time
 
 def req_light():
     global rov_tcp_sock
@@ -89,7 +93,7 @@ def req_light():
 
     curr_time = time.time()
     if curr_time - req_light.time > COMMAND_LIMIT:
-        transport.write("light".encode())
+        rov_tcp_sock.write("light".encode())
     req_light.time = curr_time
 
 def req_auto():
@@ -99,7 +103,7 @@ def req_auto():
 
     curr_time = time.time()
     if curr_time - req_auto.time > COMMAND_LIMIT:
-        transport.write("auto".encode())
+        rov_tcp_sock.write("auto".encode())
     req_auto.time = curr_time
 
 
@@ -137,7 +141,6 @@ async def controller_output(transport, interval):
 
 if __name__ == "__main__":
     loop = asyncio.get_event_loop()
-
     loop.add_signal_handler(signal.SIGINT, lambda: loop.stop())
 
     # Init UDP client
@@ -147,11 +150,15 @@ if __name__ == "__main__":
 
     # Init TCP client
     tcp = loop.create_connection(
-        lambda: TCP(), 'localhost', PORT)
-    rov_tcp_sock = loop.run_until_complete(tcp)
+        lambda: TCP(), TARGET_ADDR, PORT)
+    rov_tcp_sock, protocol = loop.run_until_complete(tcp)
+
+    print("Connected to ROV");
+
+    # Init ROV Panel
+    win = ROVPanel(rov_tcp_sock)
 
     tasks = [
-        # Even though there is no UDP listener task, received packets will be handled
         asyncio.ensure_future(controller_poll()),
         asyncio.ensure_future(controller_output(transport, UDP_RATE))
     ]
