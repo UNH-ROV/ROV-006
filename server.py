@@ -84,7 +84,7 @@ def req_temp():
     curr_time = time.time()
     if curr_time - req_temp.time > COMMAND_LIMIT:
         rov_tcp_sock.write("temp".encode())
-    req_temp.time = curr_time
+        req_temp.time = curr_time
 
 def req_light():
     global rov_tcp_sock
@@ -94,7 +94,7 @@ def req_light():
     curr_time = time.time()
     if curr_time - req_light.time > COMMAND_LIMIT:
         rov_tcp_sock.write("light".encode())
-    req_light.time = curr_time
+        req_light.time = curr_time
 
 def req_auto():
     global rov_tcp_sock
@@ -104,7 +104,7 @@ def req_auto():
     curr_time = time.time()
     if curr_time - req_auto.time > COMMAND_LIMIT:
         rov_tcp_sock.write("auto".encode())
-    req_auto.time = curr_time
+        req_auto.time = curr_time
 
 
 async def controller_poll():
