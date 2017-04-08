@@ -27,10 +27,12 @@ controller_info = {
     "ry" : 0.0,
     "lt" : 0.0,
     "rt" : 0.0,
+    "lb" : 0,
+    "rb" : 0,
     "a" : 0,
-    "b" : 0,
-    "x" : 0,
     "y" : 0,
+    "u" : 0,
+    "d" : 0,
 }
 
 class UDP:
@@ -76,13 +78,21 @@ def trig_r(x):
     global controller_info
     controller_info["rt"] = x
 
+def pad_u():
+    global controller_info
+    controller_info["u"] = 1
+
+def pad_d():
+    global controller_info
+    controller_info["d"] = 1
+
 def button_a():
     global controller_info
     controller_info["a"] = 1
 
-def button_x():
+def button_y():
     global controller_info
-    controller_info["x"] = 1
+    controller_info["y"] = 1
 
 async def controller_poll():
     """Read xbox controller information.
@@ -92,8 +102,10 @@ async def controller_poll():
     joy.on_button(Button.RStick, stick_r)
     joy.on_button(Button.LTrigger, trig_l)
     joy.on_button(Button.RTrigger, trig_r)
+    joy.on_button(Button.DpadU, pad_u)
+    joy.on_button(Button.DpadD, pad_d)
     joy.on_button(Button.A, button_a)
-    joy.on_button(Button.X, button_x)
+    joy.on_button(Button.Y, button_y)
 
     while True:
         joy = await joy.read()
@@ -119,8 +131,12 @@ async def controller_output(transport, interval):
         # Send certain messages only one time
         if "a" in controller_info:
             controller_info["a"] = 0
-        if "x" in controller_info:
-            controller_info["x"] = 0
+        if "y" in controller_info:
+            controller_info["y"] = 0
+        if "u" in controller_info:
+            controller_info["u"] = 0
+        if "d" in controller_info:
+            controller_info["d"] = 0
 
 if __name__ == "__main__":
     # Create event loop for both Windows/Unix. I'm not sure if the entire code base is cross-platform though

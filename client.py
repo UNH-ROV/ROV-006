@@ -30,9 +30,9 @@ controller_info = {
     "lt" : 0.0,
     "rt" : 0.0,
     "a" : 0,
-    "b" : 0,
-    "x" : 0,
     "y" : 0,
+    "u" : 0,
+    "d" : 0,
 }
 
 class UDP:
@@ -50,7 +50,7 @@ class UDP:
         data_json = data.decode()
         try:
             data = json.loads(data_json)
-            handle_data(data, self.loop)
+            handle_data(data, self.loop, self.pwm)
         except json.JSONDecodeError:
             print("Received invalid packet.")
             pass    # Ignore non JSON packets
@@ -60,7 +60,7 @@ class UDP:
     def error_received(self, exc):
         print('UDP connection error:', exc)
 
-def handle_data(data, loop):
+def handle_data(data, loop, pwm):
     """Parses JSON from UDP packets.
     Adds data to global variable.
     """
@@ -78,11 +78,12 @@ def handle_data(data, loop):
         controller_info["ry"] = 0
 
 
+    # TODO: Prevent these commands from being called multiple times.
     # Create tasks for command buttons
     if controller_info["a"] == 1:
         loop.create_task(get_temp())
-    #if data["y"] == 1:
-        #asyncio.async(loop.create_task(light_toggle(self.pwm)), loop=loop)
+    if controller_info["y"] == 1 or controller_info["u"] == 1 or controller_info["d"] == 1:
+        loop.create_task(light_command(pwm))
 
 @asyncio.coroutine
 def control_thruster(interval, pwm):
@@ -102,15 +103,20 @@ def control_thruster(interval, pwm):
         thrusters.drive()
 
 @asyncio.coroutine
-def light_toggle(pwm):
+def light_command(pwm):
     # If light hasn't been initialized, init it
-    global light
+    global light, controller_info
     try:
         light
     except NameError:
-        light = Light(pwm)
+        light = Light(pwm, LIGHT_PIN)
 
-    light.toggle()
+    if controller_info["y"] == 1:
+        light.toggle()
+    if controller_info["u"] == 1:
+        light.inc_brightness()
+    if controller_info["d"] == 1:
+        light.dec_brightness()
 
 @asyncio.coroutine
 def get_temp():
@@ -158,7 +164,7 @@ if __name__ == "__main__":
 
     tasks = [
         #asyncio.ensure_future(control_thruster(THRUSTER_RATE, pwm)) Python 3.5
-        asyncio.async(control_thruster(THRUSTER_RATE, pwm))
+        asyncio.async(control_thruster(THRUSTER_RATE, pwm)),
     ]
 
     # Exit handler

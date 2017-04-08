@@ -19,7 +19,7 @@ class Light:
         if self.brightness < LIGHT_MIN:
             self.brightness = LIGHT_MIN
 
-    def toggle_light(self):
+    def toggle(self):
         if not self.on:
             self.pwm.set_pwm(self.pin, 0, self.brightness)
         else:
