@@ -41,7 +41,7 @@ class IMU(serial.Serial):
         # Read lines until the sync token is received
         while True:
             line = self.readline();
-            if line.endswith("#SYNCHab\r\n"):
+            if line.endswith(b'#SYNCHab\r\n'):
                 break
 
     def get_sensors(self):
