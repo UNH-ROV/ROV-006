@@ -90,20 +90,23 @@ class TCP(asyncio.Protocol):
     """ Implement callbacks for asyncio transports.
         This will be used to send receive info from the ROV, i.e. temperature data
     """
+    def __init__(self, pwm):
+        self.pwm = pwm
+
     def connection_made(self, transport):
         peername = transport.get_extra_info('peername')
         print('Connection from {}'.format(peername))
         self.transport = transport
 
     def data_received(self, data):
+        global autonomy
+
         data = data.decode()
-        print("Received: {}".format(data))
         if data == 'temp':
             pressure, temp = get_temp()
-            self.transport.write("T: {}C, P: {}mbar".format(temp, pressure).encode())
+            self.transport.write("T: {}°C, P: {} mbar".format(temp, pressure).encode())
         elif data == 'light':
-            print("Toggle light!")
-            #light_toggle(self.pwm)
+            light_toggle(self.pwm)
         elif data == 'auto':
             autonomy = not autonomy
         elif data.startswith('pid'):
@@ -138,12 +141,14 @@ def get_temp():
 
 def light_toggle(pwm):
     try:
-        light_toggle.toggle()
+        light = light_toggle.light
     except AttributeError:
         print("Initializing light.")
-        light = Light(pwm, LIGHT_PIN)
+        light_toggle.light = Light(pwm, LIGHT_PIN)
+        light = light_toggle.light
         light.set_on()
-        light.toggle()
+
+    light.toggle()
 
 @asyncio.coroutine
 def manual_loop(interval, thrusters):
@@ -176,7 +181,8 @@ def auto_loop(interval, thrusters):
         weights = hlcontroller.update(accel, gyro)
 
         if autonomy:
-            thrusters.move_horizontal(weights[0])
+            pass
+            #thrusters.move_horizontal(weights[0])
             #thrusters.move_forward(weights[1])
             #thrusters.move_vertical(weights[2])
             #thrusters.move_yaw(-weights[3])
@@ -207,7 +213,7 @@ if __name__ == "__main__":
     transport, protocol = loop.run_until_complete(udp_serv)
 
     # Init TCP Server
-    tcp_serv = loop.create_server(TCP, LOCAL_ADDR, PORT)
+    tcp_serv = loop.create_server(lambda: TCP(pwm), LOCAL_ADDR, PORT)
     server = loop.run_until_complete(tcp_serv)
 
     # define tasks
