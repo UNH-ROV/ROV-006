@@ -9,6 +9,7 @@ import sys
 import Adafruit_PCA9685
 
 from bar30 import Bar30
+from light import Light
 from thruster_manager import Thrusters
 
 LOCAL_ADDR="192.168.0.15"
@@ -17,6 +18,8 @@ PORT=30002
 THRUSTER_RATE=100     # ms between each thruster signal. 50 = 20 signals/s
 PWM_FREQ = 48
 CONTROLLER_DEADZONE=0.2
+
+LIGHT_PIN = 11
 
 # Updated by handle_data method
 controller_info = {
@@ -32,11 +35,13 @@ controller_info = {
     "y" : 0,
 }
 
-class TransportProtocol:
+class UDP:
     """Implement callbacks for asyncio transports
+        Use to receive controller info
     """
     def __init__(self, loop, pwm):
         self.loop = loop
+        self.pwm = pwm
 
     def connection_made(self, transport):
         self.transport = transport
@@ -45,43 +50,37 @@ class TransportProtocol:
         data_json = data.decode()
         try:
             data = json.loads(data_json)
-            handle_data(data, self.transport, self.loop)
+            handle_data(data, self.loop)
         except json.JSONDecodeError:
             print("Received invalid packet.")
             pass    # Ignore non JSON packets
+        except e:
+            print(e)
 
     def error_received(self, exc):
-        print('error:', exc)
+        print('UDP connection error:', exc)
 
-def handle_data(data, transport, loop):
+def handle_data(data, loop):
     """Parses JSON from UDP packets.
     Adds data to global variable.
     """
     global controller_info
+    controller_info = data
 
-    # Update global structure.
-    controller_info["lx"] = data["lx"]
-    controller_info["ly"] = data["ly"]
-    controller_info["rx"] = data["rx"]
-    controller_info["ry"] = data["ry"]
-    controller_info["lt"] = data["lt"]
-    controller_info["rt"] = data["rt"]
-    #controller_info["a"] = data["a"]
-    #controller_info["y"] = data["y"]
-
-    print(data)
     # DEADZONE
-    if data["lx"] < CONTROLLER_DEADZONE:
-        data["lx"] = 0
-    if data["ly"] < CONTROLLER_DEADZONE:
-        data["ly"] = 0
-    if data["rx"] < CONTROLLER_DEADZONE:
-        data["rx"] = 0
-    if data["ry"] < CONTROLLER_DEADZONE:
-        data["ry"] = 0
+    if controller_info["lx"] < CONTROLLER_DEADZONE:
+        controller_info["lx"] = 0
+    if controller_info["ly"] < CONTROLLER_DEADZONE:
+        controller_info["ly"] = 0
+    if controller_info["rx"] < CONTROLLER_DEADZONE:
+        controller_info["rx"] = 0
+    if controller_info["ry"] < CONTROLLER_DEADZONE:
+        controller_info["ry"] = 0
+
+
     # Create tasks for command buttons
-    #if data["a"] == 1:
-        #asyncio.async(loop.create_task(get_temp(transport)), loop=loop)
+    if controller_info["a"] == 1:
+        loop.create_task(get_temp())
     #if data["y"] == 1:
         #asyncio.async(loop.create_task(light_toggle(self.pwm)), loop=loop)
 
@@ -111,25 +110,29 @@ def light_toggle(pwm):
     except NameError:
         light = Light(pwm)
 
-    light.toggle();
+    light.toggle()
 
 @asyncio.coroutine
-def get_temp(transport):
+def get_temp():
     """ Gets temperature and prints it out.
     """
-    global temp_bar
-    # If temp_bar hasn't been initialized, init it
+    global temp_bar, sock
+    print("Trying to get thruster data.")
+    # Check if things have been initialized
     try:
         temp_bar
     except NameError:
         temp_bar = Bar30()
+    try:
+        sock
+    except NameError:
+        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        sock.connect((TARGET_ADDR, PORT))
 
     (temp_c, pressure) = yield from temp_bar.read_bar()
 
-    # TEMP HACK: Make a new socket and send
-    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-    sock.sendto(("T:%f,P:%f" % temp_c, pressure).encode(), (TARGET_ADDR, PORT))
-    print("Temp: %f, Pressure = %f" % temp_c, pressure)
+    sock.send(("T:%f,P:%f" % (temp_c, pressure)).encode())
+    #print("Temp: %f, Pressure = %f" % (temp_c, pressure))
 
 if __name__ == "__main__":
     # Create event loop for both Windows/Unix. I'm not sure if the entire code base is cross-platform
@@ -139,27 +142,29 @@ if __name__ == "__main__":
     else:
         loop = asyncio.get_event_loop()
 
-    #loop.add_signal_handler(signal.SIGINT, lambda: loop.stop())
-
     # Init pi hat
     pwm = Adafruit_PCA9685.PCA9685()
     pwm.set_pwm_freq(PWM_FREQ) # 50 Hz is good for servo
 
-    # Init two UDP transport channel
-    # Listener
-    connect = loop.create_datagram_endpoint(
-        lambda: TransportProtocol(loop, pwm),
-        local_addr = (LOCAL_ADDR, PORT))
-    transport, protocol = loop.run_until_complete(connect)
+    # Turn on light
+    lights = Light(pwm, LIGHT_PIN)
+    lights.set_on()
 
+    # Init UDP Server
+    recv = loop.create_datagram_endpoint(
+        lambda: UDP(loop, pwm),
+        local_addr = (LOCAL_ADDR, PORT))
+    transport, protocol = loop.run_until_complete(recv)
 
     tasks = [
-        #asyncio.ensure_future(control_thruster(THRUSTER_RATE, pwm))
+        #asyncio.ensure_future(control_thruster(THRUSTER_RATE, pwm)) Python 3.5
         asyncio.async(control_thruster(THRUSTER_RATE, pwm))
     ]
 
+    # Exit handler
+    loop.add_signal_handler(signal.SIGINT, lambda: (transport.close(), loop.stop()))
+
     loop.run_until_complete(asyncio.gather(*tasks));
-    #loop.run_until_complete(asyncio.gather(control_thruster(THRUSTER_RATE)))
 
     transport.close()
     loop.close()

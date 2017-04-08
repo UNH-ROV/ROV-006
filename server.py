@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 """ Logic for the master device controlling the ROV.
 Current setup:
-    Send a UDP message to the TARGET_HOST on PORT every UDP_RATE ms. The packet
-    will hold the controller state.
+    Send a UDP message to the TARGET_HOST on PORT every UDP_RATE ms.
+    The packet will hold the controller state.
+    Maintain a TCP connection for more explicit packets like sensor requests and responses.
 """
 import xbox_async
 from xbox_async import Button
@@ -32,18 +33,30 @@ controller_info = {
     "y" : 0,
 }
 
-class TransportProtocol:
-    """ Implement callbacks for asyncio transports
+class UDP:
+    """ Implement callbacks for asyncio transports.
+        Our implementation has one-way communication for controller states.
     """
     def connection_made(self, transport):
         self.transport = transport
 
-    def datagram_received(self, data, addr):
-        data = data.decode()
-        print(data)
+    def error_received(self, exc):
+        print('UDP connection error:', exc)
+
+class TCPEchoServer(asyncio.Protocol):
+    """ Implement callbacks for asyncio transports.
+        This will be used to send receive info from the ROV, i.e. temperature data
+    """
+    def connection_made(self, transport):
+        peername = transport.get_extra_info('peername')
+        print('Connection from {}'.format(peername))
+        self.transport = transport
+
+    def data_received(self, data):
+        print(data.decode())
 
     def error_received(self, exc):
-        print('error:', exc)
+        print('TCP connection error:', exc)
 
 def stick_l(x, y):
     global controller_info
@@ -71,7 +84,7 @@ def button_x():
     global controller_info
     controller_info["x"] = 1
 
-async def controller_output():
+async def controller_poll():
     """Read xbox controller information.
     """
     joy = await xbox_async.Joystick.create(normalize=True)
@@ -87,9 +100,8 @@ async def controller_output():
 
     joy.close()
 
-async def send_data(transport, interval):
-    """Send UDP packet through given transport of some global data every interval(ms)
-    I am a bit cautious of packet sizes, but it likely won't matter.
+async def controller_output(transport, interval):
+    """Send controller message through given transport every interval(ms)
     """
     global controller_info
 
@@ -111,7 +123,7 @@ async def send_data(transport, interval):
             controller_info["x"] = 0
 
 if __name__ == "__main__":
-    # Create event loop for both Windows/Unix. I'm not sure if the entire code base is cross-platform
+    # Create event loop for both Windows/Unix. I'm not sure if the entire code base is cross-platform though
     if sys.platform == "win32":
         loop = asyncio.ProactorEventLoop()
         asyncio.set_event_loop(loop)
@@ -120,22 +132,20 @@ if __name__ == "__main__":
 
     loop.add_signal_handler(signal.SIGINT, lambda: loop.stop())
 
-    # Init two UDP transport channel
+    # Init UDP client
     send = loop.create_datagram_endpoint(
-        lambda: TransportProtocol(),
+        lambda: UDP(),
         remote_addr=(TARGET_ADDR, PORT))
-    send_transport, send_protocol = loop.run_until_complete(send)
+    transport, protocol = loop.run_until_complete(send)
 
-    # Listener
-    recv = loop.create_datagram_endpoint(
-        lambda: TransportProtocol(),
-        local_addr=(LOCAL_ADDR, PORT))
-    recv_transport, recv_protocol = loop.run_until_complete(recv)
+    # Init TCP server
+    coro = loop.create_server(TCPEchoServer, LOCAL_ADDR, PORT)
+    recv = loop.run_until_complete(coro)
 
     tasks = [
         # Even though there is no UDP listener task, received packets will be handled
-        asyncio.ensure_future(controller_output()),
-        asyncio.ensure_future(send_data(send_transport, UDP_RATE))
+        asyncio.ensure_future(controller_poll()),
+        asyncio.ensure_future(controller_output(transport, UDP_RATE))
     ]
 
     loop.run_until_complete(asyncio.gather(*tasks))
