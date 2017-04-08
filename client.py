@@ -10,7 +10,7 @@ import sys
 import time
 import Adafruit_PCA9685
 
-from devices.bar30 import Bar30
+import devices.ms5837 as ms5837 # Temp & Pressure sensor
 from devices.imu import IMU
 from devices.light import Light
 from devices.t100 import Thrusters
@@ -136,16 +136,23 @@ def get_temp():
     try:
         temp_bar
     except NameError:
-        temp_bar = Bar30()
+        temp_bar = ms5837.MS5837()
+        if not temp_bar.init():
+            print("Sensor failed to initialize")
+
     try:
         sock
     except NameError:
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         sock.connect((TARGET_ADDR, PORT))
 
-    (temp_c, pressure) = yield from temp_bar.read_bar()
+    temp_bar.read()
 
-    sock.send(("T:%f,P:%f" % (temp_c, pressure)).encode())
+    pressure = temp_bar.pressure(ms5837.UNITS_mbar)
+    temp = temp_bar.temperature(ms5837.UNITS_Centigrade)
+
+    # TODO: sock send asyncio
+    sock.send(("T:%f,P:%f" % (temp, pressure)).encode())
     #print("Temp: %f, Pressure = %f" % (temp_c, pressure))
 
 if __name__ == "__main__":
