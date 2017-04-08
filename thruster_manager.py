@@ -135,7 +135,7 @@ if __name__ == '__main__':
     pwm.set_pwm_freq(PWM_FREQ) # 50 Hz is good for servo
     thrust = Thrusters(pwm)
     time.sleep(3)
-    thrust.move_vertical(1.0)
-    thrust.drive()
-    time.sleep(8)
-    thrust.stop()
+    #thrust.move_vertical(1.0)
+    #thrust.drive()
+    #time.sleep(8)
+    #thrust.stop()

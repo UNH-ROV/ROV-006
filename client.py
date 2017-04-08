@@ -3,23 +3,28 @@
 """
 import asyncio
 import json
+import serial
 import signal
 import socket
 import sys
+import time
 import Adafruit_PCA9685
 
 from bar30 import Bar30
 from light import Light
 from thruster_manager import Thrusters
 
+SERIAL_DEV = '/dev/ttyUSB0'
+SERIAL_BAUD = 57600
 LOCAL_ADDR="192.168.0.15"
 TARGET_ADDR="192.168.0.14"
 PORT=30002
 THRUSTER_RATE=100     # ms between each thruster signal. 50 = 20 signals/s
 PWM_FREQ = 48
 CONTROLLER_DEADZONE=0.2
+LIGHT_PIN = 15
 
-LIGHT_PIN = 11
+COMMAND_LIMIT = 1 # seconds between each command. i.e. temp sensor
 
 # Updated by handle_data method
 controller_info = {
@@ -31,9 +36,9 @@ controller_info = {
     "rt" : 0.0,
     "a" : 0,
     "y" : 0,
-    "u" : 0,
-    "d" : 0,
 }
+temp_time = 0  # Previous time temp was retrieved.
+light_time = 0 # Previous time light was toggled.
 
 class UDP:
     """Implement callbacks for asyncio transports
@@ -64,7 +69,7 @@ def handle_data(data, loop, pwm):
     """Parses JSON from UDP packets.
     Adds data to global variable.
     """
-    global controller_info
+    global controller_info, temp_time, light_time
     controller_info = data
 
     # DEADZONE
@@ -78,12 +83,14 @@ def handle_data(data, loop, pwm):
         controller_info["ry"] = 0
 
 
-    # TODO: Prevent these commands from being called multiple times.
     # Create tasks for command buttons
-    if controller_info["a"] == 1:
-        loop.create_task(get_temp())
-    if controller_info["y"] == 1 or controller_info["u"] == 1 or controller_info["d"] == 1:
-        loop.create_task(light_command(pwm))
+    # The nature of the station may send a lot of these command signals, rate limit these tasks.
+    if controller_info["a"] or controller_info["y"]:
+        curr_time = time.time()
+        if controller_info["a"] and curr_time - temp_time > COMMAND_LIMIT:
+            loop.create_task(get_temp())
+        if controller_info["y"] and curr_time - temp_time > COMMAND_LIMIT:
+            loop.create_task(light_command(pwm))
 
 @asyncio.coroutine
 def control_thruster(interval, pwm):
@@ -105,18 +112,14 @@ def control_thruster(interval, pwm):
 @asyncio.coroutine
 def light_command(pwm):
     # If light hasn't been initialized, init it
-    global light, controller_info
+    global light
     try:
         light
     except NameError:
         light = Light(pwm, LIGHT_PIN)
+        light.set_on()
 
-    if controller_info["y"] == 1:
-        light.toggle()
-    if controller_info["u"] == 1:
-        light.inc_brightness()
-    if controller_info["d"] == 1:
-        light.dec_brightness()
+    light.toggle()
 
 @asyncio.coroutine
 def get_temp():
@@ -140,6 +143,14 @@ def get_temp():
     sock.send(("T:%f,P:%f" % (temp_c, pressure)).encode())
     #print("Temp: %f, Pressure = %f" % (temp_c, pressure))
 
+def get_imu():
+    """ IMU data is on serial so just read from that. """
+    ser = serial.Serial(SERIAL_DEV, SERIAL_BAUD, 6)
+    ser.flushInput()
+    ser.flushOutput()
+
+    ser.readline()
+
 if __name__ == "__main__":
     # Create event loop for both Windows/Unix. I'm not sure if the entire code base is cross-platform
     if sys.platform == "win32":
@@ -153,8 +164,7 @@ if __name__ == "__main__":
     pwm.set_pwm_freq(PWM_FREQ) # 50 Hz is good for servo
 
     # Turn on light
-    lights = Light(pwm, LIGHT_PIN)
-    lights.set_on()
+    Light(pwm, LIGHT_PIN).set_on()
 
     # Init UDP Server
     recv = loop.create_datagram_endpoint(
