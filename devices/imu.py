@@ -51,7 +51,8 @@ class IMU(serial.Serial):
         time.sleep(WRITE_WAIT) # Wait for write
 
         line = self.read(MESSAGE_SIZE)
-        unpacked = struct.unpack('fffffffff', line)
+        # 9 little endian floats
+        unpacked = struct.unpack('<fffffffff', line)
 
         # accel, mag, gyro
         return unpacked[0:3], unpacked[3:6], unpacked[6:9]
@@ -63,58 +64,21 @@ if __name__ == '__main__':
         so polling faster than that is pointless
     """
     import random
-    import numpy as np
-    import matplotlib.pyplot as plt
     imu = IMU(SERIAL_DEV, SERIAL_BAUD)
-
-    accel_data = [[], [], []]
-    avg_data = [[], [], []]
-    time_data = []
 
     avgX = 0.0
     avgY = 0.0
     avgZ = 0.0
     count = 0
     start_time = time.time()
-    for _ in range(0, 1000):
+    while True:
         accel, mag, gyro = imu.get_sensors()
         avgX = (avgX * count + accel[0]) / (count + 1)
         avgY = (avgY * count + accel[1]) / (count + 1)
         avgZ = (avgZ * count + accel[2]) / (count + 1)
         count += 1
 
-        accel_data[0].append(accel[0])
-        accel_data[1].append(accel[1])
-        accel_data[2].append(accel[2])
-
-        avg_data[0].append(avgX)
-        avg_data[1].append(avgY)
-        avg_data[2].append(avgZ)
-
-        time_data.append(time.time() - start_time)
+        print(accel)
+        print(gyro)
+        print("Average Accel: {}, {}, {}".format(avgX, avgY, avgZ))
         time.sleep(random.random() * 0.1 + 0.1)
-
-
-    xfig = plt.figure(figsize=(20, 10))
-    plt.plot(time_data, accel_data[0], label='X')
-    plt.plot(time_data, avg_data[0], label='Avg X')
-    plt.xlabel('time(s)')
-    plt.ylabel('X')
-    plt.yticks(np.arange(min(accel_data[0]), max(accel_data[0])+1, 0.25))
-
-
-    yfig = plt.figure(figsize=(20, 10))
-    plt.plot(time_data, accel_data[1], label='Y')
-    plt.plot(time_data, avg_data[1], label='Avg Y')
-    plt.xlabel('time(s)')
-    plt.ylabel('Y')
-    plt.yticks(np.arange(min(accel_data[1]), max(accel_data[1])+1, 0.25))
-
-    zfig = plt.figure(figsize=(20, 10))
-    plt.plot(time_data, accel_data[2], label='Z')
-    plt.plot(time_data, avg_data[2], label='Avg Z')
-    plt.xlabel('time(s)')
-    plt.ylabel('Z')
-    plt.yticks(np.arange(min(accel_data[2]), max(accel_data[2])+1, 0.25))
-
-    plt.show()
