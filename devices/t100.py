@@ -81,13 +81,12 @@ class Thrusters:
         self.weights_roll = scalar * WEIGHTS_ROLL
 
     def clear_weights(self):
-        for i in range(0, NUM_THRUSTERS):
-            self.weights_forward[i] = 0
-            self.weights_horizontal[i] = 0
-            self.weights_vertical[i] = 0
-            self.weights_pitch[i] = 0
-            self.weights_yaw[i] = 0
-            self.weights_roll[i] = 0
+        self.weights_forward    = np.zeros(NUM_THRUSTERS)
+        self.weights_horizontal = np.zeros(NUM_THRUSTERS)
+        self.weights_vertical   = np.zeros(NUM_THRUSTERS)
+        self.weights_pitch      = np.zeros(NUM_THRUSTERS)
+        self.weights_yaw        = np.zeros(NUM_THRUSTERS)
+        self.weights_roll       = np.zeros(NUM_THRUSTERS)
 
     def stop(self):
         for i in range(0, NUM_THRUSTERS):
