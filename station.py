@@ -42,14 +42,15 @@ class UDP:
         self.transport = transport
 
     def error_received(self, exc):
-        print('UDP connection error:', exc)
+        pass
 
 class TCP(asyncio.Protocol):
     """ Implement callbacks for asyncio transports.
         prints received data
     """
     def connection_made(self, transport):
-        print("TCP connection established")
+        peername = transport.get_extra_info('peername')
+        print("Connected to ROV at {}".format(peername))
         self.transport = transport
 
     def data_received(self, data):
@@ -57,6 +58,11 @@ class TCP(asyncio.Protocol):
 
     def error_received(self, exc):
         print('TCP connection error:', exc)
+
+    def connection_lost(self, exc):
+        print("Lost connection to ROV.")
+        asyncio.get_event_loop().create_task(tcp_retry())
+
 
 def stick_l(x, y):
     global controller_info
@@ -83,7 +89,10 @@ def req_temp():
 
     curr_time = time.time()
     if curr_time - req_temp.time > COMMAND_LIMIT:
-        rov_tcp_sock.write("temp".encode())
+        try:
+            rov_tcp_sock.write("temp".encode())
+        except AttributeError:
+            pass # Initial connection has not been established
         req_temp.time = curr_time
 
 def req_light():
@@ -93,7 +102,10 @@ def req_light():
 
     curr_time = time.time()
     if curr_time - req_light.time > COMMAND_LIMIT:
-        rov_tcp_sock.write("light".encode())
+        try:
+            rov_tcp_sock.write("light".encode())
+        except AttributeError:
+            pass # Initial connection has not been established
         req_light.time = curr_time
 
 def req_auto():
@@ -103,9 +115,11 @@ def req_auto():
 
     curr_time = time.time()
     if curr_time - req_auto.time > COMMAND_LIMIT:
-        rov_tcp_sock.write("auto".encode())
+        try:
+            rov_tcp_sock.write("auto".encode())
+        except AttributeError:
+            pass # Initial connection has not been established
         req_auto.time = curr_time
-
 
 async def controller_poll():
     """Read xbox controller information.
@@ -139,6 +153,21 @@ async def controller_output(transport, interval):
         # Otherwise we can specify it.
         transport.sendto(controller_info_json.encode())
 
+async def tcp_retry():
+    """ Continuously attempts to establish TCP connection until success.
+    """
+    global rov_tcp_sock
+    print("Attempting to initialize TCP connection with ROV...");
+    loop = asyncio.get_event_loop()
+    while True:
+        try:
+            (rov_tcp_sock, protocol) = await loop.create_connection(lambda: TCP(), TARGET_ADDR, PORT)
+        except OSError:
+            await asyncio.sleep(3)
+            print("Retrying connection to ROV...")
+        else:
+            break
+
 if __name__ == "__main__":
     loop = asyncio.get_event_loop()
     loop.add_signal_handler(signal.SIGINT, lambda: loop.stop())
@@ -148,17 +177,11 @@ if __name__ == "__main__":
         lambda: UDP(), remote_addr=(TARGET_ADDR, PORT))
     transport, protocol = loop.run_until_complete(udp)
 
-    # Init TCP client
-    tcp = loop.create_connection(
-        lambda: TCP(), TARGET_ADDR, PORT)
-    rov_tcp_sock, protocol = loop.run_until_complete(tcp)
-
-    print("Connected to ROV");
-
     # Init ROV Panel
     win = ROVPanel(rov_tcp_sock)
 
     tasks = [
+        asyncio.ensure_future(tcp_retry()),
         asyncio.ensure_future(controller_poll()),
         asyncio.ensure_future(controller_output(transport, UDP_RATE))
     ]

@@ -17,15 +17,10 @@ class Button(Enum):
 
 class Joystick:
     @classmethod
-    async def create(cls, deadzone=4000, normalize=False):
-        """ No argument constructor. Creates xboxdrv with default arguments. """
-        joy = await Joystick.create("--no-uinput", "--detach-kernel-driver",
-                                    deadzone=deadzone,
-                                    normalize=normalize)
-        return joy
-
-    @classmethod
-    async def create(cls, *args, deadzone=4000, normalize=False):
+    async def create(cls,
+                     args=["--no-uinput", "--detach-kernel-driver"],
+                     deadzone=4000,
+                     normalize=False):
         """ Spawns xboxdrv using the given arguments. This is useful for telling xboxdrv to work with
         a second controller, or a specific device.
         """
@@ -49,8 +44,8 @@ class Joystick:
                 if b'Press' in line:
                     break
                 if b'ERROR' in line:
-                    print(await self.proc.stdout.readline()) # Next line is error message
-                    raise OSError('Error running xboxdrv')
+                    error_msg = await self.proc.stdout.readline() # Next line is error message
+                    raise OSError(error_msg.decode())
             else:
                 raise RuntimeError('Failed to read xboxdrv')
 
@@ -78,7 +73,10 @@ class Joystick:
         self.handle_triggers(line)
 
     def handle_stick_l(self, line):
-        """ Returns a value from (-32768 to +32767) or (-1 to 1) if normalize=True"""
+        """ Returns a value from (-32768 to +32767) or (-1 to 1) if normalize=True
+        Stick handlers are called for every input of the controller unless the stick is in the deadzone.
+        If the LStick is outside the deadzone and A is pressed, LStick handlers will be called.
+        """
         if self.handlers[Button.LStick]:
             leftX = int(line[3:9])
             leftY = int(line[13:19])
@@ -98,7 +96,10 @@ class Joystick:
                 cb()
 
     def handle_stick_r(self, line):
-        """ Returns a value from (-32768 to +32767) or (-1 to 1) if normalize=True"""
+        """ Returns a value from (-32768 to +32767) or (-1 to 1) if normalize=True
+        Stick handlers are called for every input of the controller unless the stick is in the deadzone.
+        If the LStick is outside the deadzone and A is pressed, LStick handlers will be called.
+        """
         if self.handlers[Button.RStick]:
             rightX = int(line[24:30])
             rightY = int(line[34:40])
