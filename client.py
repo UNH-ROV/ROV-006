@@ -37,7 +37,7 @@ controller_info = {
     "lt" : 0.0,
     "rt" : 0.0,
 }
-hlcontroller = None
+hlcontroller = hlcontroller.HLController(hlcontroller.PID())
 autonomy = False
 
 class UDP:
@@ -74,33 +74,33 @@ def handle_udpdata(data, loop, pwm):
     controller_info = data
 
     # DEADZONE
-    if controller_info["lx"] < CONTROLLER_DEADZONE:
+    if abs(controller_info["lx"]) < CONTROLLER_DEADZONE:
         controller_info["lx"] = 0
-    if controller_info["ly"] < CONTROLLER_DEADZONE:
+    if abs(controller_info["ly"]) < CONTROLLER_DEADZONE:
         controller_info["ly"] = 0
-    if controller_info["rx"] < CONTROLLER_DEADZONE:
+    if abs(controller_info["rx"]) < CONTROLLER_DEADZONE:
         controller_info["rx"] = 0
-    if controller_info["ry"] < CONTROLLER_DEADZONE:
+    if abs(controller_info["ry"]) < CONTROLLER_DEADZONE:
         controller_info["ry"] = 0
 
 class TCP(asyncio.Protocol):
     """ Implement callbacks for asyncio transports.
         This will be used to send receive info from the ROV, i.e. temperature data
     """
-    def __init__(self, pwm):
-        self.pwm = pwm
-
     def connection_made(self, transport):
         peername = transport.get_extra_info('peername')
         print('Connection from {}'.format(peername))
         self.transport = transport
 
     def data_received(self, data):
+        data = data.decode()
+        print("Received: {}".format(data))
         if data == 'temp':
             pressure, temp = get_temp()
             self.transport.write("T: {}mbar, P: {}C".format(temp, pressure).encode())
         elif data == 'light':
-            light_toggle(self.pwm)
+            print("Toggle light!")
+            #light_toggle(self.pwm)
         elif data == 'auto':
             autonomy = not autonomy
         elif data.startswith('pid'):
@@ -168,7 +168,8 @@ def auto_loop(interval, thrusters):
         yield from asyncio.sleep(interval / 1000.0)
 
         accel, mag, gyro = imu.get_sensors()
-        weights = controller.update(accel, gyro)
+        accel = bad_calibration(accel)
+        weights = hlcontroller.update(accel, gyro)
 
         if autonomy:
             thrusters.move_horizontal(weights[0])
@@ -181,13 +182,14 @@ def auto_loop(interval, thrusters):
         thrusters.drive()
 
 
-        print("From accel:{} and gyro:{} || Pos:{}, Rot:{}, Vel{}".format(accel, gyro, hlcontroller.position, hlcontroller.rotation, hlcontroller.velocity))
+        print("Pos:{}, Vel{}".format(hlcontroller.position, hlcontroller.velocity))
+
+def bad_calibration(accel):
+    out_acc = (accel[0] + 3.0, accel[1] - 6.1, accel[2] - 212)
+    return out_acc
 
 if __name__ == "__main__":
     loop = asyncio.get_event_loop()
-
-    # Init high-level controller
-    hlcontroller = HLController(PID())
 
     # Init pi hat
     pwm = Adafruit_PCA9685.PCA9685()
