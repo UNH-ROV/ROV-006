@@ -18,37 +18,37 @@ import time
 import numpy as np
 import Adafruit_PCA9685
 
-NUM_THRUSTERS = 8
-
-# These weights dictate which thrusters get turned on when we want to apply the particular vector
-WEIGHTS_FORWARD    = np.array([0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0], float)
-WEIGHTS_HORIZONTAL = np.array([0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0], float)
-WEIGHTS_VERTICAL   = np.array([0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0], float)
-WEIGHTS_PITCH      = np.array([0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0], float)
-WEIGHTS_YAW        = np.array([0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0], float)
-WEIGHTS_ROLL       = np.array([0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0], float)
-
-# Thruster pins on the ServoHat
-thrusters = [0, 2, 4, 6, 8, 10, 12, 14];
-
-
+THRUSTER_PINS = [2, 3, 4, 5, 8, 9, 10, 13]
+NUM_THRUSTERS = len(THRUSTER_PINS)
+MAX_POWER = 40
+PWM_FREQ = 48
 
 # Pulse length of PWM. Add and subtract to this for speeds.
-# 150 - 600 is a reasonable range for pulse length.
-# There are performance graphs online for my purposes I'll use a logarithmic scale.
-servo_center = 307
+# There are performance graphs online
+# 307 / 1024 ticks (Pi hat) = 1500 us PWM
+SERVO_CENTER = 307
+
+# These weights dictate which thrusters get turned on when we want to apply the particular vector
+WEIGHTS_BIAS       = np.array([0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0], float)
+WEIGHTS_FORWARD    = np.array([-1.0, -0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0], float)
+WEIGHTS_HORIZONTAL = np.array([0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0], float)
+WEIGHTS_VERTICAL   = np.array([0.0, 0.0, 1.0, -1.0, 0.0, 0.0, 1.0, -1.0], float)
+WEIGHTS_PITCH      = np.array([0.0, 0.0, -1.0, -1.0, 0.0, 0.0, 1.0, 1.0], float)
+WEIGHTS_YAW        = np.array([0.5, 0.5, 0.0, 0.0, 0.5, 0.5, 0.0, 0.0], float)
+WEIGHTS_ROLL       = np.array([0.0, 0.0, 0.0, 0.5, 0.0, 0.0, 0.5, 0.0], float)
+
 
 class Thrusters:
     def __init__(self):
         # Initialise the PCA9685 using the default address (0x40).
-        pwm = Adafruit_PCA9685.PCA9685()
+        self.pwm = Adafruit_PCA9685.PCA9685()
 
-        # Set frequency to 60hz, good for servos.
-        pwm.set_pwm_freq(60)
+        # Set frequency to 50hz, good for servos.
+        self.pwm.set_pwm_freq(PWM_FREQ)
 
         # Initialize thrusters. Unsure if this is necessary
-        #for i in range(0, 8):
-            #hat.setPWM(thruster[i], 0, servo_center)
+        for i in range(0, NUM_THRUSTERS):
+            self.pwm.set_pwm(THRUSTER_PINS[i], 0, SERVO_CENTER)
 
         # This is the resulting weight from all vectors
         self.weights_forward    = np.zeros(NUM_THRUSTERS)
@@ -58,8 +58,6 @@ class Thrusters:
         self.weights_yaw        = np.zeros(NUM_THRUSTERS)
         self.weights_roll       = np.zeros(NUM_THRUSTERS)
 
-        return self
-
     def move_forward(self, scalar):
         """ Scale weights to move forward. percent should range from -1 to 1"""
         self.weights_forward = scalar * WEIGHTS_FORWARD
@@ -68,6 +66,7 @@ class Thrusters:
         """ Scale weights to move horizontally. Scalar should range from -1 to 1."""
         self.weights_horizontal = scalar * WEIGHTS_HORIZONTAL
 
+    # Positive is up.
     def move_vertical(self, scalar):
         """ Scale weights to move vertical. Scalar should range from -1 to 1."""
         self.weights_vertical = scalar * WEIGHTS_VERTICAL
@@ -84,20 +83,55 @@ class Thrusters:
         """ Scale weights to move roll. Scalar should range from -1 to 1."""
         self.weights_roll = scalar * WEIGHTS_ROLL
 
-    def drive():
+    def stop(self):
+        for i in range(0, NUM_THRUSTERS):
+            self.pwm.set_pwm(THRUSTER_PINS[i], 0, SERVO_CENTER)
+
+    def drive(self):
         """ Send PWM signal to thrusters.
             Sum the weight vectors of each direction of interest to get weights for the resulting vector.
-            Exponentiation causes the following weight results: -1=150, 1=600.
+
         """
-        weights_result = self.weights_forward + self.weights_horizontal + self.weights_vertical + \
-                         self.weights_pitch + self.weights_yaw + self.weights_roll
+        weights_sum = self.weights_forward + self.weights_horizontal + self.weights_vertical + self.weights_pitch + self.weights_yaw + self.weights_roll
 
-        # Normalize the resultant so the next step doesn't generate PWM signals beyond our desired range.
-        weights_result = weights_result / weights_result.max()
+        # Normalize the sum so the next step doesn't generate PWM signals beyond our desired range.
+        max_weight = weights_sum.max()
+        if max_weight > 1.0:
+            weights_sum /= max_weight
 
-        print("Sending values to thrusters: %s", weights_result)
+        print(weights_sum)
+        weights_sum *= MAX_POWER
+        print(weights_sum)
 
         for i in range(0, NUM_THRUSTERS):
             # Test this before sending it out. wouldn't want to fry anything (If that's even possible).
-            print("Thruster %d gets %f" % i, servo_center * (2 ** weights_results[i]))
-            #hat.setPWM(thruster[i], 0, servo_center * (2 ** weights_results[i]))
+            print("Thruster %d gets %f" % (i, SERVO_CENTER + weights_sum[i]))
+            self.pwm.set_pwm(THRUSTER_PINS[i], 0, int(SERVO_CENTER + weights_sum[i]))
+
+    def set_pwm(self, pin, channel, value):
+        """ Send PWM signal directly to thrusters. Used for debugging. """
+        self.pwm.set_pwm(pin, channel, value)
+
+    def send_weights(self, weights_sum):
+        # Normalize the sum so the next step doesn't generate PWM signals beyond our desired range.
+        max_weight = weights_sum.max()
+        if max_weight > 1.0:
+            weights_sum /= max_weight
+
+        print("HI")
+        weights_sum *= MAX_POWER
+
+        for i in range(0, NUM_THRUSTERS):
+            print("Thruster %d gets %f" % (i, int(SERVO_CENTER + weights_sum[i])))
+            self.pwm.set_pwm(THRUSTER_PINS[i], 0, int(SERVO_CENTER + weights_sum[i]))
+
+import signal
+import sys
+if __name__ == '__main__':
+    thrust = Thrusters()
+    time.sleep(3)
+
+    thrust.move_vertical(-1.0)
+    thrust.drive()
+    time.sleep(10)
+    thrust.stop()

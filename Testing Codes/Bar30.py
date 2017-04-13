@@ -62,12 +62,13 @@ class Bar30:
     The two can't really by seperated because they are dependant on each other!
     Chains into a sleep. So likely dump this in its own task.
     """
-    async def read_bar(self):
+    @asyncio.coroutine
+    def read_bar(self):
         # MS5837_30BA01 address, 0x76(118)
         #		0x40(64)	Pressure conversion(OSR = 256) command
         bus.write_byte(0x76, 0x40)
 
-        await asyncio.sleep(SLEEP_TIME)
+        yield asyncio.sleep(SLEEP_TIME)
 
         # Read digital pressure value
         # Read data back from 0x00(0), 3 bytes
@@ -79,7 +80,7 @@ class Bar30:
         #		0x50(64)	Temperature conversion(OSR = 256) command
         bus.write_byte(0x76, 0x50)
 
-        await asyncio.sleep(SLEEP_TIME)
+        yield asyncio.sleep(SLEEP_TIME)
 
         # Read digital temperature value
         # Read data back from 0x00(0), 3 bytes
