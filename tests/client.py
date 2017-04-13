@@ -10,8 +10,8 @@ import json
 import signal
 import sys
 
-import Bar30
-import Thrusters as t
+import bar30
+from thruster_manager import Thrusters
 
 LOCAL_ADDR="192.168.0.15"
 PORT=30002
@@ -61,7 +61,7 @@ def handle_data(data):
 @asyncio.coroutine
 def control_thruster(interval):
     """ Reads controller_info and sends the proper command to ThrusterControl library. """
-    thrusters = t.Thrusters()
+    thrusters = Thrusters()
 
 
     while True:
