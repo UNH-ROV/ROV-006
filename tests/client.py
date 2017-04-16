@@ -1,9 +1,5 @@
 #!/usr/bin/env python3
 """ Logic for the ROV.
-Current status:
-    Parses JSON on receiving UDP
-TODO:
-    Remove checks for "joy_x", etc. Use a try block and just fail to control.
 """
 import asyncio
 import json
@@ -17,72 +13,68 @@ LOCAL_ADDR="192.168.0.15"
 PORT=30002
 THRUSTER_RATE=100     # ms between each thruster signal. 50 = 20 signals/s
 
+# Updated by handle_data method
 controller_info = {}
 
-class ClientProtocol:
+class TransportProtocol:
     """Implement callbacks for asyncio transports
     """
+    def __init__(self, loop):
+        self.loop = loop
+
     def connection_made(self, transport):
         self.transport = transport
 
     def datagram_received(self, data, addr):
         data_json = data.decode()
-        #print(data_json)
-        #try:
-        data = json.loads(data_json)
-        handle_data(data)
-        #except json.JSONDecodeError:
-            #pass    # Ignore non JSON packets
+        try:
+            data = json.loads(data_json)
+            handle_data(data, self.transport, self.loop)
+        except json.JSONDecodeError:
+            print("Received invalid packet.")
+            pass    # Ignore non JSON packets
 
     def error_received(self, exc):
         print('error:', exc)
 
-def handle_data(data):
+def handle_data(data, transport, loop):
     """Parses JSON from UDP packets.
     Adds data to global variable.
     """
     global controller_info
 
-    if "joy_x" in data:
-        controller_info["joy_x"] = data["joy_x"];
-    if "joy_y" in data:
-        controller_info["joy_y"] = data["joy_y"];
-    #if "trig_l" in data:
-        #controller_info["trig_l"] = data["trig_l"];
-    if "trig_r" in data:
-        controller_info["trig_r"] = data["trig_r"];
-    if "rot_y" in data:
-        controller_info["rot_y"] = data["rot_y"];
-    if "rot_y" in data:
-        controller_info["rot_y"] = data["rot_y"];
-    #if "get_temp" in data:
-        #loop.create_task(get_temp())
+    # Update global structure.
+    controller_info["lx"] = data["lx"]
+    controller_info["ly"] = data["ly"]
+    controller_info["rx"] = data["rx"]
+    controller_info["ry"] = data["ry"]
+    controller_info["lt"] = data["lt"]
+    controller_info["rt"] = data["rt"]
+    controller_info["a"] = data["a"]
+
+    # Create tasks for command buttons
+    if data["a"] == 1:
+        loop.create_task(get_temp(transport))
 
 @asyncio.coroutine
 def control_thruster(interval):
     """ Reads controller_info and sends the proper command to ThrusterControl library. """
+    global controller_info
     thrusters = Thrusters()
-
 
     while True:
         yield from asyncio.sleep(interval / 1000.0)
-        #if "joy_x" in controller_info:
-            #thrusters.move_horizontal(controller_info["joy_x"])
-        #if "joy_y" in controller_info:
-            #thrusters.move_forward(controller_info["joy_y"])
-        #if "trig_l" in controller_info:
-            #thrusters.move_vertical(controller_info["trig_l"])
-        if "trig_r" in controller_info:
-            thrusters.move_vertical(-controller_info["trig_r"])
-        #if "rot_x" in controller_info:
-            #thrusters.move_yaw(controller_info["rot_x"])
-        #if "rot_y" in controller_info:
-            #thrusters.move_pitch(controller_info["rot_y"])
+
+        thrusters.move_horizontal(controller_info["lx"])
+        thrusters.move_forward(controller_info["ly"])
+        thrusters.move_vertical(controller_info["lt"] - controller_info["rt"])
+        thrusters.move_yaw(controller_info["rx"])
+        thrusters.move_pitch(controller_info["ry"])
 
         thrusters.drive()
 
 @asyncio.coroutine
-def get_temp():
+def get_temp(transport):
     """ Gets temperature and prints it out.
     """
     global temp_bar
@@ -94,6 +86,9 @@ def get_temp():
         temp_bar = Bar30()
 
     (temp_c, pressure) = yield temp_bar.read_bar()
+
+    # TODO: Send a UDP packet
+    # transport.sendto(("T:%f,P:%f" % temp_c, pressure).encode())
     print("Temp: %f, Pressure = %f" % temp_c, pressure)
 
 if __name__ == "__main__":
@@ -108,17 +103,17 @@ if __name__ == "__main__":
 
     # Init UDP transport channel
     connect = loop.create_datagram_endpoint(
-        ClientProtocol,
+        lambda: TransportProtocol(loop),
         local_addr = (LOCAL_ADDR, PORT))
     transport, protocol = loop.run_until_complete(connect)
 
 
-    #tasks = [
-        #asyncio.ensure_future(control_thruster(THRUSTER_RATE))
-    #]
+    tasks = [
+        asyncio.ensure_future(control_thruster(THRUSTER_RATE))
+    ]
 
-    #loop.run_until_complete(asyncio.gather(*tasks));
-    loop.run_until_complete(asyncio.gather(control_thruster(THRUSTER_RATE)))
+    loop.run_until_complete(asyncio.gather(*tasks));
+    #loop.run_until_complete(asyncio.gather(control_thruster(THRUSTER_RATE)))
 
     transport.close()
     loop.close()
