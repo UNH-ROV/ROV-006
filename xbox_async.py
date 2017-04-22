@@ -46,7 +46,7 @@ class Joystick:
         while True:
             line = await self.proc.stdout.readline()
             if line:
-                if b'Press Ctrl-C' in line:
+                if b'Press' in line:
                     break
                 if b'ERROR' in line:
                     print(await self.proc.stdout.readline()) # Next line is error message
