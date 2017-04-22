@@ -11,12 +11,10 @@ The class initializes PiHat PWM communication. It has available functions that m
 how much power it will put into the thrusters.
 Once this is done, the drive() function will send signals to the thrusters.
 
-
 """
 
 import time
 import numpy as np
-import Adafruit_PCA9685
 
 THRUSTER_PINS = [2, 3, 4, 5, 8, 9, 10, 13]
 NUM_THRUSTERS = len(THRUSTER_PINS)
@@ -29,22 +27,20 @@ PWM_FREQ = 48
 SERVO_CENTER = 307
 
 # These weights dictate which thrusters get turned on when we want to apply the particular vector
-WEIGHTS_BIAS       = np.array([0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0], float)
-WEIGHTS_FORWARD    = np.array([-1.0, -0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0], float)
-WEIGHTS_HORIZONTAL = np.array([0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0], float)
-WEIGHTS_VERTICAL   = np.array([0.0, 0.0, 1.0, -1.0, 0.0, 0.0, 1.0, -1.0], float)
-WEIGHTS_PITCH      = np.array([0.0, 0.0, -1.0, -1.0, 0.0, 0.0, 1.0, 1.0], float)
-WEIGHTS_YAW        = np.array([0.5, 0.5, 0.0, 0.0, 0.5, 0.5, 0.0, 0.0], float)
-WEIGHTS_ROLL       = np.array([0.0, 0.0, 0.0, 0.5, 0.0, 0.0, 0.5, 0.0], float)
+WEIGHTS_BIAS       = np.array([-1.0, 1.0, 1.0, -1.0, 1.0, 1.0, 1.0, -1.0], float)
+WEIGHTS_FORWARD    = np.array([1.0, 1.0, 0.0, 0.0, 1.0, 1.0, 0.0, 0.0], float)   # positive forward
+WEIGHTS_HORIZONTAL = np.array([1.0, -1.0, 0.0, 0.0, 1.0, -1.0, 0.0, 0.0], float) # positive right
+WEIGHTS_VERTICAL   = np.array([0.0, 0.0, 1.0, 1.0, 0.0, 0.0, 1.0, 1.0], float)   # positive up
+WEIGHTS_PITCH      = np.array([0.0, 0.0, 1.0, 1.0, 0.0, 0.0, -1.0, -1.0], float) # positive tips up
+WEIGHTS_YAW        = np.array([-1.0, 1.0, 0.0, 0.0, 1.0, -1.0, 0.0, 0.0], float) # positive ccw
+WEIGHTS_ROLL       = np.array([0.0, 0.0, 1.0, -1.0, 0.0, 0.0, -1.0, 1.0], float)   # positive ccw
+
+#WEIGHT_MIN = 0.05
 
 
 class Thrusters:
-    def __init__(self):
-        # Initialise the PCA9685 using the default address (0x40).
-        self.pwm = Adafruit_PCA9685.PCA9685()
-
-        # Set frequency to 50hz, good for servos.
-        self.pwm.set_pwm_freq(PWM_FREQ)
+    def __init__(self, pwm):
+        self.pwm = pwm
 
         # Initialize thrusters. Unsure if this is necessary
         for i in range(0, NUM_THRUSTERS):
@@ -83,6 +79,15 @@ class Thrusters:
         """ Scale weights to move roll. Scalar should range from -1 to 1."""
         self.weights_roll = scalar * WEIGHTS_ROLL
 
+    def clear_weights(self):
+        for i in range(0, NUM_THRUSTERS):
+            self.weights_forward[i] = 0
+            self.weights_horizontal[i] = 0
+            self.weights_vertical[i] = 0
+            self.weights_pitch[i] = 0
+            self.weights_yaw[i] = 0
+            self.weights_roll[i] = 0
+
     def stop(self):
         for i in range(0, NUM_THRUSTERS):
             self.pwm.set_pwm(THRUSTER_PINS[i], 0, SERVO_CENTER)
@@ -93,45 +98,44 @@ class Thrusters:
 
         """
         weights_sum = self.weights_forward + self.weights_horizontal + self.weights_vertical + self.weights_pitch + self.weights_yaw + self.weights_roll
+        #for i in range(0, NUM_THRUSTERS):
+            #if weights_sum[i] < WEIGHT_MIN:
+                #weights_sum[i] = 0
+
+        print(weights_sum)
+
+        # Sign mod
+        weights_sum *= WEIGHTS_BIAS
 
         # Normalize the sum so the next step doesn't generate PWM signals beyond our desired range.
         max_weight = weights_sum.max()
         if max_weight > 1.0:
             weights_sum /= max_weight
 
-        print(weights_sum)
         weights_sum *= MAX_POWER
-        print(weights_sum)
 
         for i in range(0, NUM_THRUSTERS):
+            signal = int(SERVO_CENTER + weights_sum[i])
+
             # Test this before sending it out. wouldn't want to fry anything (If that's even possible).
-            print("Thruster %d gets %f" % (i, SERVO_CENTER + weights_sum[i]))
-            self.pwm.set_pwm(THRUSTER_PINS[i], 0, int(SERVO_CENTER + weights_sum[i]))
+            #print("Thruster %d gets %d" % (i, signal))
+            self.pwm.set_pwm(THRUSTER_PINS[i], 0, signal)
+
+        #self.clear_weights()
 
     def set_pwm(self, pin, channel, value):
         """ Send PWM signal directly to thrusters. Used for debugging. """
         self.pwm.set_pwm(pin, channel, value)
 
-    def send_weights(self, weights_sum):
-        # Normalize the sum so the next step doesn't generate PWM signals beyond our desired range.
-        max_weight = weights_sum.max()
-        if max_weight > 1.0:
-            weights_sum /= max_weight
-
-        print("HI")
-        weights_sum *= MAX_POWER
-
-        for i in range(0, NUM_THRUSTERS):
-            print("Thruster %d gets %f" % (i, int(SERVO_CENTER + weights_sum[i])))
-            self.pwm.set_pwm(THRUSTER_PINS[i], 0, int(SERVO_CENTER + weights_sum[i]))
-
 import signal
 import sys
+import Adafruit_PCA9685
 if __name__ == '__main__':
-    thrust = Thrusters()
+    pwm = Adafruit_PCA9685.PCA9685()
+    pwm.set_pwm_freq(PWM_FREQ) # 50 Hz is good for servo
+    thrust = Thrusters(pwm)
     time.sleep(3)
-
-    thrust.move_vertical(-1.0)
+    thrust.move_vertical(1.0)
     thrust.drive()
-    time.sleep(10)
+    time.sleep(8)
     thrust.stop()
