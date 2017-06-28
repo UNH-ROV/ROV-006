@@ -40,8 +40,7 @@ controller_info = {
     "y" : 0,
     "g" : 0,
 }
-temp_time = 0  # Previous time temp was retrieved.
-light_time = 0 # Previous time light was toggled.
+autonomy = False
 
 class UDP:
     """Implement callbacks for asyncio transports
@@ -72,7 +71,17 @@ def handle_data(data, loop, pwm):
     """Parses JSON from UDP packets.
     Adds data to global variable.
     """
-    global controller_info, temp_time, light_time
+    global controller_info
+    # static variables: time
+    try:
+        temp_time = handle_data.temp_time
+        light_time = handle_data.light_time
+    except AttributeError
+        handle_data.temp_time = 0  # Previous time temp was retrieved.
+        handle_data.light_time = 0 # Previous time light was toggled.
+        handle_data.auto_time = 0 # Previous time autonomy was toggled.
+
+
     controller_info = data
 
     # DEADZONE
@@ -88,7 +97,7 @@ def handle_data(data, loop, pwm):
 
     # Create tasks for command buttons
     # The nature of the station may send a lot of these command signals, rate limit these tasks.
-    if controller_info["a"] or controller_info["y"]:
+    if controller_info["a"] or controller_info["y"] or controller_info["g"]:
         curr_time = time.time()
         if controller_info["a"] and curr_time - temp_time > COMMAND_LIMIT:
             loop.create_task(get_temp())
@@ -96,24 +105,31 @@ def handle_data(data, loop, pwm):
         if controller_info["y"] and curr_time - light_time > COMMAND_LIMIT:
             loop.create_task(light_toggle(pwm))
             light_time = curr_time
+        if controller_info["g"] and curr_time - auto_time > COMMAND_LIMIT:
+            autonomy = not autonomy
 
 @asyncio.coroutine
 def core_loop(interval, pwm):
     """ Reads controller_info and sends the proper command to ThrusterControl library. """
-    global controller_info
+    global controller_info, autonomy
     thrusters = Thrusters(pwm)
     imu = IMU(SERIAL_DEV, SERIAL_BAUD)
 
     while True:
-        yield from asyncio.sleep(interval / 1000.0)
+        if not autonomy:
+            # Take in controller_input
+            yield from asyncio.sleep(interval / 1000.0)
 
-        thrusters.move_horizontal(controller_info["lx"])
-        thrusters.move_forward(controller_info["ly"])
-        thrusters.move_vertical(controller_info["lt"] - controller_info["rt"])
-        thrusters.move_yaw(-controller_info["rx"])
-        thrusters.move_pitch(controller_info["ry"])
+            thrusters.move_horizontal(controller_info["lx"])
+            thrusters.move_forward(controller_info["ly"])
+            thrusters.move_vertical(controller_info["lt"] - controller_info["rt"])
+            thrusters.move_yaw(-controller_info["rx"])
+            thrusters.move_pitch(controller_info["ry"])
 
-        thrusters.drive()
+            thrusters.drive()
+        else:
+            # Run autonomously
+            print("autonomy loop!")
 
 
 @asyncio.coroutine
