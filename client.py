@@ -38,6 +38,7 @@ controller_info = {
     "rt" : 0.0,
     "a" : 0,
     "y" : 0,
+    "g" : 0,
 }
 temp_time = 0  # Previous time temp was retrieved.
 light_time = 0 # Previous time light was toggled.
@@ -97,7 +98,7 @@ def handle_data(data, loop, pwm):
             light_time = curr_time
 
 @asyncio.coroutine
-def control_thruster(interval, pwm):
+def core_loop(interval, pwm):
     """ Reads controller_info and sends the proper command to ThrusterControl library. """
     global controller_info
     thrusters = Thrusters(pwm)
@@ -117,51 +118,45 @@ def control_thruster(interval, pwm):
 
 @asyncio.coroutine
 def light_toggle(pwm):
-    # If light hasn't been initialized, init it
-    global light
     try:
-        light
-    except NameError:
+        light_toggle.toggle()
+    except AttributeError:
         light = Light(pwm, LIGHT_PIN)
         light.set_on()
-
-    light.toggle()
+        light.toggle()
 
 @asyncio.coroutine
 def get_temp():
-    """ Gets temperature and prints it out.
+    """ Gets temperature and sends the information into the socket.
+        temp_bar and sock are static variables.
     """
-    global temp_bar, sock
-    # Check if things have been initialized
     try:
-        temp_bar
-    except NameError:
-        temp_bar = ms5837.MS5837()
-        if not temp_bar.init():
+        bar = get_temp.temp_bar
+        sock = get_temp.sock
+    except AttributeError:
+        # This was the first time this function was run.
+        # Initialize all static vars.
+        get_temp.temp_bar = ms5837.MS5837()
+        if not get_temp.temp_bar.init():
             print("Sensor failed to initialize")
 
-    try:
-        sock
-    except NameError:
-        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        sock.connect((TARGET_ADDR, PORT))
+        get_temp.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        get_temp.sock.connect((TARGET_ADDR, PORT))
 
-    temp_bar.read()
+    bar.read()
 
-    pressure = temp_bar.pressure(ms5837.UNITS_mbar)
-    temp = temp_bar.temperature(ms5837.UNITS_Centigrade)
+    pressure = bar.pressure(ms5837.UNITS_mbar)
+    temp = bar.temperature(ms5837.UNITS_Centigrade)
 
     # TODO: sock send asyncio
     sock.send(("T:%f,P:%f" % (temp, pressure)).encode())
     #print("Temp: %f, Pressure = %f" % (temp_c, pressure))
 
 if __name__ == "__main__":
-    # Create event loop for both Windows/Unix. I'm not sure if the entire code base is cross-platform
-    if sys.platform == "win32":
-        loop = asyncio.ProactorEventLoop()
-        asyncio.set_event_loop(loop)
-    else:
-        loop = asyncio.get_event_loop()
+    loop = asyncio.get_event_loop()
+
+    # Exit handler
+    loop.add_signal_handler(signal.SIGINT, lambda: (transport.close(), loop.stop()))
 
     # Init pi hat
     pwm = Adafruit_PCA9685.PCA9685()
@@ -177,12 +172,9 @@ if __name__ == "__main__":
     transport, protocol = loop.run_until_complete(recv)
 
     tasks = [
-        #asyncio.ensure_future(control_thruster(THRUSTER_RATE, pwm)) Python 3.5
-        asyncio.async(control_thruster(THRUSTER_RATE, pwm)),
+        #Python3.5 asyncio.ensure_future(core_loop(THRUSTER_RATE, pwm))
+        asyncio.async(core_loop(THRUSTER_RATE, pwm)),
     ]
-
-    # Exit handler
-    loop.add_signal_handler(signal.SIGINT, lambda: (transport.close(), loop.stop()))
 
     loop.run_until_complete(asyncio.gather(*tasks));
 

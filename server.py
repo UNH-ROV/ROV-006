@@ -31,8 +31,7 @@ controller_info = {
     "rb" : 0,
     "a" : 0,
     "y" : 0,
-    "u" : 0,
-    "d" : 0,
+    "g" : 0,
 }
 
 class UDP:
@@ -78,14 +77,6 @@ def trig_r(x):
     global controller_info
     controller_info["rt"] = x
 
-def pad_u():
-    global controller_info
-    controller_info["u"] = 1
-
-def pad_d():
-    global controller_info
-    controller_info["d"] = 1
-
 def button_a():
     global controller_info
     controller_info["a"] = 1
@@ -93,6 +84,10 @@ def button_a():
 def button_y():
     global controller_info
     controller_info["y"] = 1
+
+def button_guide():
+    global controller_info
+    controller_info["g"] = 1
 
 async def controller_poll():
     """Read xbox controller information.
@@ -102,10 +97,9 @@ async def controller_poll():
     joy.on_button(Button.RStick, stick_r)
     joy.on_button(Button.LTrigger, trig_l)
     joy.on_button(Button.RTrigger, trig_r)
-    joy.on_button(Button.DpadU, pad_u)
-    joy.on_button(Button.DpadD, pad_d)
     joy.on_button(Button.A, button_a)
     joy.on_button(Button.Y, button_y)
+    joy.on_button(Button.Guide, button_guide)
 
     while True:
         joy = await joy.read()
@@ -133,18 +127,11 @@ async def controller_output(transport, interval):
             controller_info["a"] = 0
         if "y" in controller_info:
             controller_info["y"] = 0
-        if "u" in controller_info:
-            controller_info["u"] = 0
-        if "d" in controller_info:
-            controller_info["d"] = 0
+        if "g" in controller_info:
+            controller_info["g"] = 0
 
 if __name__ == "__main__":
-    # Create event loop for both Windows/Unix. I'm not sure if the entire code base is cross-platform though
-    if sys.platform == "win32":
-        loop = asyncio.ProactorEventLoop()
-        asyncio.set_event_loop(loop)
-    else:
-        loop = asyncio.get_event_loop()
+    loop = asyncio.get_event_loop()
 
     loop.add_signal_handler(signal.SIGINT, lambda: loop.stop())
 
