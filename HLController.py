@@ -39,3 +39,43 @@ class HLController:
 
     def getRot(self):
         return self.rotation
+
+class PID:
+    """ PID controller
+    """
+    def __init__(self, p=2.0, i=0.5, d=1.0, integral=0, integral_max=500, integral_min=-500):
+        self.kP = p
+        self.kI = i
+        self.kD = d
+        self.integral = integral
+        self.integral_max = integral_max
+        self.integral_min = integral_min
+
+        self.prev_error = numpy.zeros(3)
+        self.goal = numpy.zeros(3)
+
+    def update(self, current_value, delta_time):
+        """ Calculate PID output value for given reference input and feedback
+        """
+        error = self.goal - current_value
+
+        p = self.Kp * self.error
+
+        self.integral += self.integral + self.error
+        self.integral = clamp(self.integral, self.integral_min, self.integral_max)
+        i = self.integral * self.kI
+
+        d = self.kD * (error - self.prev_error) / delta_time
+
+        self.prev_error = error
+
+        return p + i + d
+
+    def reset(self):
+        self.integral = 0.0
+        self.prev_error = numpy.zeros(3)
+
+    def clamp(i, clamp_min, clamp_max):
+        """ Clamp i between min and max
+        """
+        return max(clamp_min, min(i, clamp_max))
