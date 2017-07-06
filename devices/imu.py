@@ -4,6 +4,7 @@ import time
 
 SERIAL_DEV = '/dev/ttyUSB0'
 SERIAL_BAUD = 57600
+WRITE_WAIT = 0.01
 
 class IMU(serial.Serial):
     def __init__(self, dev, rate):
@@ -13,7 +14,7 @@ class IMU(serial.Serial):
         #self.write(b'#o0#ob')
         self.write(b'#o0#oscb')
         self.flush()
-        time.sleep(0.01) # Wait for write
+        time.sleep(WRITE_WAIT) # Wait for write
 
     def get_sensors(self):
         """ Expects the IMU to be configured to output all sensor data. """
@@ -24,7 +25,7 @@ class IMU(serial.Serial):
         self.flush()
         time.sleep(0.01) # Wait for write
 
-        line = self.read(36)
+        line = self.read(WRITE_WAIT)
 
         accelX = struct.unpack('f', line[0:4])[0]
         accelY = struct.unpack('f', line[4:8])[0]

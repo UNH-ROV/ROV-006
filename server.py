@@ -30,8 +30,14 @@ controller_info = {
     "lb" : 0,
     "rb" : 0,
     "a" : 0,
-    "y" : 0,
+    "b" : 0,
+    "x" : 0,
+    "a" : 0,
     "g" : 0,
+    "u" : 0,
+    "d" : 0,
+    "l" : 0,
+    "r" : 0,
 }
 
 class UDP:
@@ -81,6 +87,14 @@ def button_a():
     global controller_info
     controller_info["a"] = 1
 
+def button_b():
+    global controller_info
+    controller_info["b"] = 1
+
+def button_x():
+    global controller_info
+    controller_info["x"] = 1
+
 def button_y():
     global controller_info
     controller_info["y"] = 1
@@ -88,6 +102,22 @@ def button_y():
 def button_guide():
     global controller_info
     controller_info["g"] = 1
+
+def button_up():
+    global controller_info
+    controller_info["u"] = 1
+
+def button_down():
+    global controller_info
+    controller_info["d"] = 1
+
+def button_left():
+    global controller_info
+    controller_info["l"] = 1
+
+def button_right():
+    global controller_info
+    controller_info["r"] = 1
 
 async def controller_poll():
     """Read xbox controller information.
@@ -98,8 +128,14 @@ async def controller_poll():
     joy.on_button(Button.LTrigger, trig_l)
     joy.on_button(Button.RTrigger, trig_r)
     joy.on_button(Button.A, button_a)
+    joy.on_button(Button.B, button_b)
+    joy.on_button(Button.X, button_x)
     joy.on_button(Button.Y, button_y)
     joy.on_button(Button.Guide, button_guide)
+    joy.on_button(Button.DpadU, button_up)
+    joy.on_button(Button.DpadD, button_down)
+    joy.on_button(Button.DpadL, button_left)
+    joy.on_button(Button.DpadR, button_right)
 
     while True:
         joy = await joy.read()
@@ -123,12 +159,15 @@ async def controller_output(transport, interval):
 
 
         # Send certain messages only one time
-        if "a" in controller_info:
-            controller_info["a"] = 0
-        if "y" in controller_info:
-            controller_info["y"] = 0
-        if "g" in controller_info:
-            controller_info["g"] = 0
+        controller_info["a"] = 0
+        controller_info["b"] = 0
+        controller_info["x"] = 0
+        controller_info["y"] = 0
+        controller_info["g"] = 0
+        controller_info["u"] = 0
+        controller_info["d"] = 0
+        controller_info["l"] = 0
+        controller_info["r"] = 0
 
 if __name__ == "__main__":
     loop = asyncio.get_event_loop()

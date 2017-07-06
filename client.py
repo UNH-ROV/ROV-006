@@ -14,6 +14,7 @@ import devices.ms5837 as ms5837 # Temp & Pressure sensor
 from devices.imu import IMU
 from devices.light import Light
 from devices.t100 import Thrusters
+import HLController from HLController
 
 SERIAL_DEV = '/dev/ttyUSB0'
 SERIAL_BAUD = 57600
@@ -36,9 +37,17 @@ controller_info = {
     "ry" : 0.0,
     "lt" : 0.0,
     "rt" : 0.0,
+    "lb" : 0,
+    "rb" : 0,
     "a" : 0,
-    "y" : 0,
+    "b" : 0,
+    "x" : 0,
+    "a" : 0,
     "g" : 0,
+    "u" : 0,
+    "d" : 0,
+    "l" : 0,
+    "r" : 0,
 }
 autonomy = False
 
@@ -76,7 +85,7 @@ def handle_data(data, loop, pwm):
     try:
         temp_time = handle_data.temp_time
         light_time = handle_data.light_time
-    except AttributeError
+    except AttributeError:
         handle_data.temp_time = 0  # Previous time temp was retrieved.
         handle_data.light_time = 0 # Previous time light was toggled.
         handle_data.auto_time = 0 # Previous time autonomy was toggled.
@@ -109,17 +118,13 @@ def handle_data(data, loop, pwm):
             autonomy = not autonomy
 
 @asyncio.coroutine
-def core_loop(interval, pwm):
+def manual_loop(interval, thrusters):
     """ Reads controller_info and sends the proper command to ThrusterControl library. """
     global controller_info, autonomy
-    thrusters = Thrusters(pwm)
-    imu = IMU(SERIAL_DEV, SERIAL_BAUD)
 
     while True:
+        yield from asyncio.sleep(interval / 1000.0)
         if not autonomy:
-            # Take in controller_input
-            yield from asyncio.sleep(interval / 1000.0)
-
             thrusters.move_horizontal(controller_info["lx"])
             thrusters.move_forward(controller_info["ly"])
             thrusters.move_vertical(controller_info["lt"] - controller_info["rt"])
@@ -127,10 +132,22 @@ def core_loop(interval, pwm):
             thrusters.move_pitch(controller_info["ry"])
 
             thrusters.drive()
-        else:
-            # Run autonomously
-            print("autonomy loop!")
 
+@asyncio.coroutine
+def auto_loop(interval, thrusters):
+    """ Constantly updates controller with IMU data.
+    """
+    imu = IMU(SERIAL_DEV, SERIAL_BAUD)
+    controller = HLController()
+
+    while True:
+        yield from asyncio.sleep(interval / 1000.0)
+
+        accel, mag, gyro = imu.get_sensors()
+        controller.updatePos(accel)
+        controller.updateRot(gyro)
+
+        print("Pos: {}, Rot: {}".format(controller.getPos(), controller.getRot()))
 
 @asyncio.coroutine
 def light_toggle(pwm):
@@ -169,17 +186,17 @@ def get_temp():
     #print("Temp: %f, Pressure = %f" % (temp_c, pressure))
 
 if __name__ == "__main__":
+    # asyncio loop
     loop = asyncio.get_event_loop()
-
-    # Exit handler
     loop.add_signal_handler(signal.SIGINT, lambda: (transport.close(), loop.stop()))
 
     # Init pi hat
     pwm = Adafruit_PCA9685.PCA9685()
     pwm.set_pwm_freq(PWM_FREQ) # 50 Hz is good for servo
 
-    # Turn on light
-    Light(pwm, LIGHT_PIN).set_on()
+    # Init lights and thrusters
+    Light(pwm, LIGHT_PIN).set_on() # We drop the class
+    thrusters = Thrusters(pwm)
 
     # Init UDP Server
     recv = loop.create_datagram_endpoint(
@@ -187,9 +204,11 @@ if __name__ == "__main__":
         local_addr = (LOCAL_ADDR, PORT))
     transport, protocol = loop.run_until_complete(recv)
 
+    # define tasks
     tasks = [
-        #Python3.5 asyncio.ensure_future(core_loop(THRUSTER_RATE, pwm))
-        asyncio.async(core_loop(THRUSTER_RATE, pwm)),
+        #Python3.5 asyncio.ensure_future(manual_loop(THRUSTER_RATE, pwm))
+        asyncio.async(manual_loop(THRUSTER_RATE, thrusters)),
+        asyncio.async(auto_loop(THRUSTER_RATE, thrusters)),
     ]
 
     loop.run_until_complete(asyncio.gather(*tasks));
