@@ -1,73 +1,95 @@
 import time
 import numpy
 
-# High level controller
 class HLController:
-    def __init__(self):
+    """ High Level Controller. I'm sorry for the strange variable naming.
+    """
+    def __init__(self, controller):
         self.goalPos = numpy.zeros(3)
         self.position = numpy.zeros(3)
         self.velocity = numpy.zeros(3)
         self.rotation = numpy.zeros(3)
+
         self.time = time.time()
-        self.pos_time = self.time
 
-    # Given accelerometer data, update position
-    def updatePos(self, accel):
+        self.controller = controller
+        self.output = numpy.zeros(3)
+
+    def update(self, accel, gyro):
+        """
+        Given accelerometer and gyro data, update internal state
+        Returns controller output.
+        """
+        accelx, accely, accelz = accel
+        rotx, roty, rotz = gyro
+
         curr_time = time.time()
+        delta_time = curr_time - self.time
 
-        self.position += self.velocity
-        self.updateVelocity(accel, curr_time)
+        # update internal state
+        self.position += self.velocity * delta_time
+        self.velocity[0] += accelx * delta_time
+        self.velocity[1] += accely * delta_time
+        self.velocity[2] += accelz * delta_time
+        self.rotation = [rotx, roty, rotz]
 
-        self.pos_time
+        state = numpy.concatenate((self.position, self.rotation))
+        output = self.controller.update(state, delta_time)
 
-    # Given acceleratometer data and data time, calculate velocity
-    def updateVelocity(self, accel, curr_time):
-        x, y, z = accel
+        self.time = curr_time
+        return output
 
-        delta_time = curr_time - self.pos_time
 
-        self.velocity[0] += x * delta_time;
-        self.velocity[1] += y * delta_time;
-        self.velocity[2] += z * delta_time;
+class LQR:
+    def __init__(self):
+        self.K = 3
 
-    # Given gyro data, update rotation
-    def updateRot(self, gyro):
-        x, y, z = gyro
+    def solve(A,B,Q,R):
+        """
+        x[k+1] = A x[k] + B u[k]
 
-    def getPos(self):
-        return self.position
+        cost = sum x[k].T*Q*x[k] + u[k].T*R*u[k]
+        """
+        #ref Bertsekas, p.151
 
-    def getRot(self):
-        return self.rotation
+        #first, try to solve the ricatti equation
+        X = np.matrix(scipy.linalg.solve_discrete_are(A, B, Q, R))
+
+        #compute the LQR gain
+        K = np.matrix(scipy.linalg.inv(B.T*X*B+R)*(B.T*X*A))
+
+        eigVals, eigVecs = scipy.linalg.eig(A-B*K)
+
+        return K, X, eigVals
 
 class PID:
-    """ PID controller
+    """ PID controller over 6 values
     """
-    def __init__(self, p=2.0, i=0.5, d=1.0, integral=0, integral_max=500, integral_min=-500):
+    def __init__(self, goal=numpy.zeros(6), p=2.0, i=0.0, d=0.0):
         self.kP = p
         self.kI = i
         self.kD = d
-        self.integral = integral
-        self.integral_max = integral_max
-        self.integral_min = integral_min
+        self.integral = 0.0
 
-        self.prev_error = numpy.zeros(3)
-        self.goal = numpy.zeros(3)
+        self.prev_error = numpy.zeros(6)
+        self.goal = goal
 
     def update(self, current_value, delta_time):
         """ Calculate PID output value for given reference input and feedback
         """
         error = self.goal - current_value
 
-        p = self.Kp * self.error
+        p = self.kP * error
 
-        self.integral += self.integral + self.error
-        self.integral = clamp(self.integral, self.integral_min, self.integral_max)
-        i = self.integral * self.kI
+        self.integral += self.integral + error
+        i = self.kI * self.integral
 
-        d = self.kD * (error - self.prev_error) / delta_time
+        d = self.kD * (error - self.prev_error)
 
         self.prev_error = error
+
+        print(error)
+        #print("{} {} {}".format(p, i, d))
 
         return p + i + d
 
@@ -75,7 +97,21 @@ class PID:
         self.integral = 0.0
         self.prev_error = numpy.zeros(3)
 
-    def clamp(i, clamp_min, clamp_max):
-        """ Clamp i between min and max
-        """
-        return max(clamp_min, min(i, clamp_max))
+if __name__ == "__main__":
+    controller = PID()
+    state = numpy.array([300.0, 150.0, 100.0, 3.0, 60.0, 44.0])
+    controller.goal = numpy.array([301.0, 150.0, 100.0, 3.0, 60.0, 44.0])
+    prev_time = time.time()
+
+    while True:
+        curr_time = time.time()
+        delta_time = curr_time - prev_time
+        error = numpy.random.rand(6) * 0.05
+
+        output = controller.update(state, delta_time)
+        #print("State: {}".format(state))
+        #print("Output: {}".format(output))
+        state += output + error
+
+        prev_time = curr_time
+        time.sleep(0.2)
