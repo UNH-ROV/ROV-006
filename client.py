@@ -14,7 +14,7 @@ import devices.ms5837 as ms5837 # Temp & Pressure sensor
 from devices.imu import IMU
 from devices.light import Light
 from devices.t100 import Thrusters
-import HLController from HLController
+from HLController import HLController
 
 SERIAL_DEV = '/dev/ttyUSB0'
 SERIAL_BAUD = 57600
@@ -144,10 +144,19 @@ def auto_loop(interval, thrusters):
         yield from asyncio.sleep(interval / 1000.0)
 
         accel, mag, gyro = imu.get_sensors()
-        controller.updatePos(accel)
-        controller.updateRot(gyro)
+        weights = controller.update(accel, gyro)
 
-        print("Pos: {}, Rot: {}".format(controller.getPos(), controller.getRot()))
+        thrusters.move_horizontal(weights[0])
+        #thrusters.move_forward(weights[1])
+        #thrusters.move_vertical(weights[2])
+        #thrusters.move_yaw(-weights[3])
+        #thrusters.move_pitch(weights[4])
+        #thrusters.move_pitch(weights[5])
+
+        thrusters.drive()
+
+
+        print("From accel:{} and gyro:{} || Pos:{}, Rot:{}, Vel{}".format(accel, gyro, controller.position, controller.rotation, controller.velocity))
 
 @asyncio.coroutine
 def light_toggle(pwm):
