@@ -76,6 +76,7 @@ class PID:
 
     def update(self, current_value, delta_time):
         """ Calculate PID output value for given reference input and feedback
+            Delta_time is expected as msec (but obviously kD can be modified to compensate)
         """
         error = self.goal - current_value
 
@@ -84,7 +85,9 @@ class PID:
         self.integral += self.integral + error
         i = self.kI * self.integral
 
-        d = self.kD * (error - self.prev_error)
+        # Help
+        #d = self.kD * (error - self.prev_error)
+        d = self.kD * (error - self.prev_error) / delta_time
 
         self.prev_error = error
 
@@ -95,7 +98,7 @@ class PID:
 
     def reset(self):
         self.integral = 0.0
-        self.prev_error = numpy.zeros(3)
+        self.prev_error = numpy.zeros(6)
 
 if __name__ == "__main__":
     controller = PID()
@@ -108,7 +111,7 @@ if __name__ == "__main__":
         delta_time = curr_time - prev_time
         error = numpy.random.rand(6) * 0.05
 
-        output = controller.update(state, delta_time)
+        output = controller.update(state, delta_time * 1000)
         #print("State: {}".format(state))
         #print("Output: {}".format(output))
         state += output + error
