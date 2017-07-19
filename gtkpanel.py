@@ -14,7 +14,7 @@ def boxed_entry(label, value):
     spinbutton.set_numeric(True)
     box.pack_start(spinbutton, True, True, 0)
 
-    return box
+    return box, spinbutton
 
 class ROVPanel(Gtk.Window):
     """ Gtk window for setting parameters in the ROV's high level controls.
@@ -30,19 +30,29 @@ class ROVPanel(Gtk.Window):
         self.controls_box.pack_start(pid_box, True, True, 0)
         pid_box.set_homogeneous(False)
 
+        self.pid = {}
         pid_box.pack_start(Gtk.Label("PID"), True, True, 5)
-        pid_box.pack_start(boxed_entry("P: ", 2.0), True, True, 3)
-        pid_box.pack_start(boxed_entry("I: ", 0.5), True, True, 3)
-        pid_box.pack_start(boxed_entry("D: ", 1.0), True, True, 3)
+        box, self.pid['p'] = boxed_entry("P: ", 2.0)
+        pid_box.pack_start(box, True, True, 3)
+
+        box, self.pid['i'] = boxed_entry("I: ", 0.5)
+        pid_box.pack_start(box, True, True, 3)
+
+        box, self.pid['d'] = boxed_entry("D: ", 1.0)
+        pid_box.pack_start(box, True, True, 3)
 
         # Create LQR box
         lqr_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
         self.controls_box.pack_start(lqr_box, True, True, 0)
         lqr_box.set_homogeneous(False)
 
+        self.lqr = {}
         lqr_box.pack_start(Gtk.Label("LQR"), True, True, 5)
-        lqr_box.pack_start(boxed_entry("Q: ", 1.0), True, True, 3)
-        lqr_box.pack_start(boxed_entry("R: ", 1.0), True, True, 3)
+        box, self.lqr['q'] = boxed_entry("Q: ", 1.0)
+        lqr_box.pack_start(box, True, True, 3)
+
+        box, self.lqr['r'] = boxed_entry("R: ", 1.0)
+        lqr_box.pack_start(box, True, True, 3)
 
         # Create Control choices
         button_box = Gtk.Box()
@@ -59,11 +69,10 @@ class ROVPanel(Gtk.Window):
         self.add(self.controls_box)
 
     def on_pid_clicked(self, button):
-        print("PID clicked.")
+        print("P: {}, I: {}, D: {}".format(self.pid['p'].get_value(), self.pid['i'].get_value(), self.pid['d'].get_value()))
 
     def on_lqr_clicked(self, button):
-        print("LQR clicked.")
-
+        print("Q: {}, R: {}".format(self.lqr['q'].get_value(), self.lqr['r'].get_value()))
 
 win = ROVPanel()
 win.connect("delete-event", Gtk.main_quit)

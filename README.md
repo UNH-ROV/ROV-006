@@ -7,4 +7,9 @@ The Raspberry Pi 3 uses Python3.4. As a result, the code in the ROV program uses
 To update to Python 3.5+, one can replace a couple of the old asyncio keywords.
 Replace `@asyncio.coroutine` with `async`. Replace `yield` from with `await`.
 
+* gtk3
+* python-gobject2
+* gobject-introspection
+* gbulb
+
 Academic Year 2016-2017
