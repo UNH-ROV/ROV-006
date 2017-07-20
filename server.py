@@ -1,23 +1,27 @@
 #!/usr/bin/env python3
 """ Logic for the master device controlling the ROV.
 Current setup:
-    Send a UDP message to the TARGET_HOST on PORT every UDP_RATE ms.
-    The packet will hold the controller state.
-    Maintain a TCP connection for more explicit packets like sensor requests and responses.
+    Send a UDP message with controller_info to the
+    TARGET_HOST on PORT every UDP_RATE ms.
+    Send a TCP message with single time events
 """
-import xbox_async
-from xbox_async import Button
+import devices.xbox_async
+from devices.xbox_async import Button, Joystick
 import asyncio
 import sys
 import signal
 import time
 import socket
 import json
+import gbulb
+
+gbulb.install()
 
 PORT=30002
 LOCAL_ADDR="192.168.0.14"
 TARGET_ADDR="192.168.0.15"
 UDP_RATE=50     # ms between each datagram. 50 = 20 packets/s
+COMMAND_LIMIT = 1 # seconds between each command. i.e. temp sensor
 
 # This will be modified by the xbox button handlers
 controller_info = {
@@ -27,17 +31,6 @@ controller_info = {
     "ry" : 0.0,
     "lt" : 0.0,
     "rt" : 0.0,
-    "lb" : 0,
-    "rb" : 0,
-    "a" : 0,
-    "b" : 0,
-    "x" : 0,
-    "a" : 0,
-    "g" : 0,
-    "u" : 0,
-    "d" : 0,
-    "l" : 0,
-    "r" : 0,
 }
 
 class UDP:
@@ -50,17 +43,13 @@ class UDP:
     def error_received(self, exc):
         print('UDP connection error:', exc)
 
-class TCPEchoServer(asyncio.Protocol):
+class TCP(asyncio.Protocol):
     """ Implement callbacks for asyncio transports.
-        This will be used to send receive info from the ROV, i.e. temperature data
+        Our implementation has one-way communication for controller states.
     """
     def connection_made(self, transport):
-        peername = transport.get_extra_info('peername')
-        print('Connection from {}'.format(peername))
+        print("TCP connection established")
         self.transport = transport
-
-    def data_received(self, data):
-        print(data.decode())
 
     def error_received(self, exc):
         print('TCP connection error:', exc)
@@ -83,59 +72,48 @@ def trig_r(x):
     global controller_info
     controller_info["rt"] = x
 
-def button_a():
-    global controller_info
-    controller_info["a"] = 1
+def req_temp():
+    global rov_tcp_sock
+    try: req_temp.time
+    except AttributeError: req_temp.time = 0
 
-def button_b():
-    global controller_info
-    controller_info["b"] = 1
+    curr_time = time.time()
+    if curr_time - req_time.time > COMMAND_LIMIT:
+        transport.write("temp".encode())
+    req_time.time = curr_time
 
-def button_x():
-    global controller_info
-    controller_info["x"] = 1
+def req_light():
+    global rov_tcp_sock
+    try: req_light.time
+    except AttributeError: req_light.time = 0
 
-def button_y():
-    global controller_info
-    controller_info["y"] = 1
+    curr_time = time.time()
+    if curr_time - req_light.time > COMMAND_LIMIT:
+        transport.write("light".encode())
+    req_light.time = curr_time
 
-def button_guide():
-    global controller_info
-    controller_info["g"] = 1
+def req_auto():
+    global rov_tcp_sock
+    try: req_auto.time
+    except AttributeError: req_auto.time = 0
 
-def button_up():
-    global controller_info
-    controller_info["u"] = 1
+    curr_time = time.time()
+    if curr_time - req_auto.time > COMMAND_LIMIT:
+        transport.write("auto".encode())
+    req_auto.time = curr_time
 
-def button_down():
-    global controller_info
-    controller_info["d"] = 1
-
-def button_left():
-    global controller_info
-    controller_info["l"] = 1
-
-def button_right():
-    global controller_info
-    controller_info["r"] = 1
 
 async def controller_poll():
     """Read xbox controller information.
     """
-    joy = await xbox_async.Joystick.create(normalize=True)
+    joy = await Joystick.create(normalize=True)
     joy.on_button(Button.LStick, stick_l)
     joy.on_button(Button.RStick, stick_r)
     joy.on_button(Button.LTrigger, trig_l)
     joy.on_button(Button.RTrigger, trig_r)
-    joy.on_button(Button.A, button_a)
-    joy.on_button(Button.B, button_b)
-    joy.on_button(Button.X, button_x)
-    joy.on_button(Button.Y, button_y)
-    joy.on_button(Button.Guide, button_guide)
-    joy.on_button(Button.DpadU, button_up)
-    joy.on_button(Button.DpadD, button_down)
-    joy.on_button(Button.DpadL, button_left)
-    joy.on_button(Button.DpadR, button_right)
+    joy.on_button(Button.A, req_temp)
+    joy.on_button(Button.B, req_light)
+    joy.on_button(Button.X, req_auto)
 
     while True:
         joy = await joy.read()
@@ -157,32 +135,20 @@ async def controller_output(transport, interval):
         # Otherwise we can specify it.
         transport.sendto(controller_info_json.encode())
 
-
-        # Send certain messages only one time
-        controller_info["a"] = 0
-        controller_info["b"] = 0
-        controller_info["x"] = 0
-        controller_info["y"] = 0
-        controller_info["g"] = 0
-        controller_info["u"] = 0
-        controller_info["d"] = 0
-        controller_info["l"] = 0
-        controller_info["r"] = 0
-
 if __name__ == "__main__":
     loop = asyncio.get_event_loop()
 
     loop.add_signal_handler(signal.SIGINT, lambda: loop.stop())
 
     # Init UDP client
-    send = loop.create_datagram_endpoint(
-        lambda: UDP(),
-        remote_addr=(TARGET_ADDR, PORT))
-    transport, protocol = loop.run_until_complete(send)
+    udp = loop.create_datagram_endpoint(
+        lambda: UDP(), remote_addr=(TARGET_ADDR, PORT))
+    transport, protocol = loop.run_until_complete(udp)
 
-    # Init TCP server
-    coro = loop.create_server(TCPEchoServer, LOCAL_ADDR, PORT)
-    recv = loop.run_until_complete(coro)
+    # Init TCP client
+    tcp = loop.create_connection(
+        lambda: TCP(), 'localhost', PORT)
+    rov_tcp_sock = loop.run_until_complete(tcp)
 
     tasks = [
         # Even though there is no UDP listener task, received packets will be handled

@@ -19,7 +19,6 @@ from HLController import HLController
 SERIAL_DEV = '/dev/ttyUSB0'
 SERIAL_BAUD = 57600
 LOCAL_ADDR="192.168.0.15"
-TARGET_ADDR="192.168.0.14"
 PORT=30002
 THRUSTER_RATE=100     # ms between each thruster signal. 50 = 20 signals/s
 PWM_FREQ = 48
@@ -37,17 +36,6 @@ controller_info = {
     "ry" : 0.0,
     "lt" : 0.0,
     "rt" : 0.0,
-    "lb" : 0,
-    "rb" : 0,
-    "a" : 0,
-    "b" : 0,
-    "x" : 0,
-    "a" : 0,
-    "g" : 0,
-    "u" : 0,
-    "d" : 0,
-    "l" : 0,
-    "r" : 0,
 }
 autonomy = False
 
@@ -66,7 +54,7 @@ class UDP:
         data_json = data.decode()
         try:
             data = json.loads(data_json)
-            handle_data(data, self.loop, self.pwm)
+            handle_udpdata(data, self.loop, self.pwm)
         except json.JSONDecodeError:
             print("Received invalid packet.")
             pass    # Ignore non JSON packets
@@ -76,20 +64,11 @@ class UDP:
     def error_received(self, exc):
         print('UDP connection error:', exc)
 
-def handle_data(data, loop, pwm):
+def handle_udpdata(data, loop, pwm):
     """Parses JSON from UDP packets.
     Adds data to global variable.
     """
     global controller_info
-    # static variables: time
-    try:
-        temp_time = handle_data.temp_time
-        light_time = handle_data.light_time
-    except AttributeError:
-        handle_data.temp_time = 0  # Previous time temp was retrieved.
-        handle_data.light_time = 0 # Previous time light was toggled.
-        handle_data.auto_time = 0 # Previous time autonomy was toggled.
-
 
     controller_info = data
 
@@ -103,19 +82,63 @@ def handle_data(data, loop, pwm):
     if controller_info["ry"] < CONTROLLER_DEADZONE:
         controller_info["ry"] = 0
 
+class TCP(asyncio.Protocol):
+    """ Implement callbacks for asyncio transports.
+        This will be used to send receive info from the ROV, i.e. temperature data
+    """
+    def __init__(self, pwm):
+        self.pwm = pwm
 
-    # Create tasks for command buttons
-    # The nature of the station may send a lot of these command signals, rate limit these tasks.
-    if controller_info["a"] or controller_info["y"] or controller_info["g"]:
-        curr_time = time.time()
-        if controller_info["a"] and curr_time - temp_time > COMMAND_LIMIT:
-            loop.create_task(get_temp())
-            temp_time = curr_time
-        if controller_info["y"] and curr_time - light_time > COMMAND_LIMIT:
-            loop.create_task(light_toggle(pwm))
-            light_time = curr_time
-        if controller_info["g"] and curr_time - auto_time > COMMAND_LIMIT:
+    def connection_made(self, transport):
+        peername = transport.get_extra_info('peername')
+        print('Connection from {}'.format(peername))
+        self.transport = transport
+
+    def data_received(self, data):
+        if data == 'temp':
+            pressure, temp = get_temp()
+            self.transport.write("T: {}mbar, P: {}C".format(temp, pressure).encode())
+        elif data == 'light':
+            light_toggle(self.pwm)
+        elif data == 'auto':
             autonomy = not autonomy
+        elif data.startswith('pid'):
+            pass
+        elif data.startswith('lqr'):
+            pass
+
+    def error_received(self, exc):
+        print('TCP connection error:', exc)
+
+def get_temp():
+    """ Gets temperature and sends the information into the socket.
+        temp_bar and sock are static variables.
+    """
+    try:
+        bar = get_temp.temp_bar
+        sock = get_temp.sock
+    except AttributeError:
+        # This was the first time this function was run.
+        # Initialize all static vars.
+        print("Initializing temperature bar.")
+        get_temp.temp_bar = ms5837.MS5837()
+        if not get_temp.temp_bar.init():
+            print("Sensor failed to initialize")
+
+    bar.read()
+
+    pressure = bar.pressure(ms5837.UNITS_mbar)
+    temp = bar.temperature(ms5837.UNITS_Centigrade)
+
+    return pressure, temp
+
+def light_toggle(pwm):
+    try:
+        light_toggle.toggle()
+    except AttributeError:
+        light = Light(pwm, LIGHT_PIN)
+        light.set_on()
+        light.toggle()
 
 @asyncio.coroutine
 def manual_loop(interval, thrusters):
@@ -128,7 +151,7 @@ def manual_loop(interval, thrusters):
             thrusters.move_horizontal(controller_info["lx"])
             thrusters.move_forward(controller_info["ly"])
             thrusters.move_vertical(controller_info["lt"] - controller_info["rt"])
-            thrusters.move_yaw(-controller_info["rx"])
+            thrusters.move_yaw(-controller_info["rx"]) # Flipped to map xbox state to ROV coordinate
             thrusters.move_pitch(controller_info["ry"])
 
             thrusters.drive()
@@ -146,58 +169,22 @@ def auto_loop(interval, thrusters):
         accel, mag, gyro = imu.get_sensors()
         weights = controller.update(accel, gyro)
 
-        thrusters.move_horizontal(weights[0])
-        #thrusters.move_forward(weights[1])
-        #thrusters.move_vertical(weights[2])
-        #thrusters.move_yaw(-weights[3])
-        #thrusters.move_pitch(weights[4])
-        #thrusters.move_pitch(weights[5])
+        if autonomy:
+            thrusters.move_horizontal(weights[0])
+            #thrusters.move_forward(weights[1])
+            #thrusters.move_vertical(weights[2])
+            #thrusters.move_yaw(-weights[3])
+            #thrusters.move_pitch(weights[4])
+            #thrusters.move_pitch(weights[5])
 
         thrusters.drive()
 
 
         print("From accel:{} and gyro:{} || Pos:{}, Rot:{}, Vel{}".format(accel, gyro, controller.position, controller.rotation, controller.velocity))
 
-@asyncio.coroutine
-def light_toggle(pwm):
-    try:
-        light_toggle.toggle()
-    except AttributeError:
-        light = Light(pwm, LIGHT_PIN)
-        light.set_on()
-        light.toggle()
-
-@asyncio.coroutine
-def get_temp():
-    """ Gets temperature and sends the information into the socket.
-        temp_bar and sock are static variables.
-    """
-    try:
-        bar = get_temp.temp_bar
-        sock = get_temp.sock
-    except AttributeError:
-        # This was the first time this function was run.
-        # Initialize all static vars.
-        get_temp.temp_bar = ms5837.MS5837()
-        if not get_temp.temp_bar.init():
-            print("Sensor failed to initialize")
-
-        get_temp.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        get_temp.sock.connect((TARGET_ADDR, PORT))
-
-    bar.read()
-
-    pressure = bar.pressure(ms5837.UNITS_mbar)
-    temp = bar.temperature(ms5837.UNITS_Centigrade)
-
-    # TODO: sock send asyncio
-    sock.send(("T:%f,P:%f" % (temp, pressure)).encode())
-    #print("Temp: %f, Pressure = %f" % (temp_c, pressure))
-
 if __name__ == "__main__":
     # asyncio loop
     loop = asyncio.get_event_loop()
-    loop.add_signal_handler(signal.SIGINT, lambda: (transport.close(), loop.stop()))
 
     # Init pi hat
     pwm = Adafruit_PCA9685.PCA9685()
@@ -208,10 +195,14 @@ if __name__ == "__main__":
     thrusters = Thrusters(pwm)
 
     # Init UDP Server
-    recv = loop.create_datagram_endpoint(
+    udp_serv = loop.create_datagram_endpoint(
         lambda: UDP(loop, pwm),
         local_addr = (LOCAL_ADDR, PORT))
-    transport, protocol = loop.run_until_complete(recv)
+    transport, protocol = loop.run_until_complete(udp_serv)
+
+    # Init TCP Server
+    tcp_serv = loop.create_server(TCP, LOCAL_ADDR, PORT)
+    server = loop.run_until_complete(tcp_serv)
 
     # define tasks
     tasks = [
@@ -220,8 +211,5 @@ if __name__ == "__main__":
         asyncio.async(auto_loop(THRUSTER_RATE, thrusters)),
     ]
 
+    loop.add_signal_handler(signal.SIGINT, lambda: (transport.close(), loop.stop(), server.close()))
     loop.run_until_complete(asyncio.gather(*tasks));
-
-    transport.close()
-    loop.close()
-
