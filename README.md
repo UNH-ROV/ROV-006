@@ -5,11 +5,14 @@ Currently the ROV's IP is 192.168.0.15 while the station IP is 192.168.0.14.
 
 The Raspberry Pi 3 uses Python3.4. As a result, the code in the ROV program uses the older asyncio syntax.
 To update to Python 3.5+, one can replace a couple of the old asyncio keywords.
-Replace `@asyncio.coroutine` with `async`. Replace `yield` from with `await`.
+Replace `@asyncio.coroutine` with `async`. Replace `yield from` with `await`.
 
+Dependencies:
+* xboxdrv
 * gtk3
 * python-gobject2
 * gobject-introspection
 * gbulb
+Some dependencies are system packages while others are python packages.
 
 Academic Year 2016-2017

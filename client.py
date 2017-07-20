@@ -9,12 +9,12 @@ import socket
 import sys
 import time
 import Adafruit_PCA9685
+import hlcontroller
 
 import devices.ms5837 as ms5837 # Temp & Pressure sensor
 from devices.imu import IMU
 from devices.light import Light
 from devices.t100 import Thrusters
-from HLController import HLController
 
 SERIAL_DEV = '/dev/ttyUSB0'
 SERIAL_BAUD = 57600
@@ -37,6 +37,7 @@ controller_info = {
     "lt" : 0.0,
     "rt" : 0.0,
 }
+hlcontroller = None
 autonomy = False
 
 class UDP:
@@ -160,8 +161,8 @@ def manual_loop(interval, thrusters):
 def auto_loop(interval, thrusters):
     """ Constantly updates controller with IMU data.
     """
+    global hlcontroller
     imu = IMU(SERIAL_DEV, SERIAL_BAUD)
-    controller = HLController()
 
     while True:
         yield from asyncio.sleep(interval / 1000.0)
@@ -180,11 +181,13 @@ def auto_loop(interval, thrusters):
         thrusters.drive()
 
 
-        print("From accel:{} and gyro:{} || Pos:{}, Rot:{}, Vel{}".format(accel, gyro, controller.position, controller.rotation, controller.velocity))
+        print("From accel:{} and gyro:{} || Pos:{}, Rot:{}, Vel{}".format(accel, gyro, hlcontroller.position, hlcontroller.rotation, hlcontroller.velocity))
 
 if __name__ == "__main__":
-    # asyncio loop
     loop = asyncio.get_event_loop()
+
+    # Init high-level controller
+    hlcontroller = HLController(PID())
 
     # Init pi hat
     pwm = Adafruit_PCA9685.PCA9685()
