@@ -13,12 +13,12 @@ import signal
 import time
 import socket
 import json
-#import gbulb
+import gbulb
+gbulb.install()
 
-#gbulb.install()
+from gtkpanel import ROVPanel
 
 PORT=30002
-LOCAL_ADDR="192.168.0.14"
 TARGET_ADDR="192.168.0.15"
 UDP_RATE=50     # ms between each datagram. 50 = 20 packets/s
 COMMAND_LIMIT = 1 # seconds between each command. i.e. temp sensor
@@ -32,6 +32,7 @@ controller_info = {
     "lt" : 0.0,
     "rt" : 0.0,
 }
+rov_tcp_sock = None
 
 class UDP:
     """ Implement callbacks for asyncio transports.
@@ -45,11 +46,14 @@ class UDP:
 
 class TCP(asyncio.Protocol):
     """ Implement callbacks for asyncio transports.
-        Our implementation has one-way communication for controller states.
+        prints received data
     """
     def connection_made(self, transport):
         print("TCP connection established")
         self.transport = transport
+
+    def data_received(self, data):
+        print(data.decode())
 
     def error_received(self, exc):
         print('TCP connection error:', exc)
@@ -147,14 +151,19 @@ if __name__ == "__main__":
     # Init TCP client
     tcp = loop.create_connection(
         lambda: TCP(), TARGET_ADDR, PORT)
+    rov_tcp_sock, protocol = loop.run_until_complete(tcp)
+
+    print("Connected to ROV");
+
+    # Init ROV Panel
+    win = ROVPanel(rov_tcp_sock)
 
     tasks = [
-        asyncio.ensure_future(tcp),
         asyncio.ensure_future(controller_poll()),
         asyncio.ensure_future(controller_output(transport, UDP_RATE))
     ]
 
-    rov_tcp_sock, protocol = loop.run_until_complete(asyncio.gather(*tasks))
+    loop.run_until_complete(asyncio.gather(*tasks))
 
     transport.close()
     loop.close()
