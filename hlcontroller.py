@@ -2,7 +2,9 @@ import time
 import numpy
 
 class HLController:
-    """ High Level Controller. I'm sorry for the strange variable naming.
+    """ High Level Controller.
+        Wrapper over all types of controllers (PID, LQR, etc)
+        Stores state information and asks the underlying controller for updates.
     """
     def __init__(self, controller):
         self.goalPos = numpy.zeros(3)
@@ -33,6 +35,7 @@ class HLController:
         self.velocity[2] += accelz * delta_time
         self.rotation = [rotx, roty, rotz]
 
+        # Ask the controller how to reach goal
         state = numpy.concatenate((self.position, self.rotation))
         output = self.controller.update(state, delta_time)
 

@@ -17,7 +17,7 @@ from devices.light import Light
 from devices.t100 import Thrusters
 
 # Converts the IMU's unit to m/s
-ACCEL_CONVERSION = 256 / 9.8 
+ACCEL_CONVERSION = 256 / 9.8
 
 SERIAL_DEV = '/dev/ttyUSB0'
 SERIAL_BAUD = 57600
@@ -166,6 +166,13 @@ def manual_loop(interval, thrusters):
 
             thrusters.drive()
 
+def remove_gravity(accel):
+    """ Remove gravity from accelerometer output
+        Ideally using the gyro to calculate gravity
+    """
+    accel[2] - 256.0
+    return accel
+
 @asyncio.coroutine
 def auto_loop(interval, thrusters):
     """ Constantly updates controller with IMU data.
@@ -189,11 +196,11 @@ def auto_loop(interval, thrusters):
             #thrusters.move_pitch(weights[4])
             #thrusters.move_pitch(weights[5])
 
-        thrusters.drive()
+        #thrusters.drive()
 
 
-        #print(accel)
-        #print("Pos:{}, Vel{}".format(hlcontroller.position, hlcontroller.velocity))
+
+        print("Pos:{}".format(hlcontroller.position * ACCEL_CONVERSION))
 
 if __name__ == "__main__":
     loop = asyncio.get_event_loop()
