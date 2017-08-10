@@ -19,7 +19,7 @@ gbulb.install()
 from gtkpanel import ROVPanel
 
 PORT=30002
-TARGET_ADDR="192.168.0.14"
+TARGET_ADDR="192.168.0.15"
 UDP_RATE=50     # ms between each datagram. 50 = 20 packets/s
 COMMAND_LIMIT = 1 # seconds between each command. i.e. temp sensor
 
