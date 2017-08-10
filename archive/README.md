@@ -1,5 +1,4 @@
 # Testing-Codes
-
 Just a dump of various codes. Ideally one would use a testing branch, but.
 
 # Thoughts and Ideas
@@ -36,7 +35,7 @@ In so far I've used asyncio. I'm sure future ROV developers will curse me for it
 
     Now that I write this it's sounding pretty neat. Maybe a custom openWRT image with master code installed!
 
-And then I realized that the end system is too unknown to establish a concrete system and decided to statically configure IPv4 addresses.
+And then I realized that the end system is too unknown to establish a concrete system and decided to statically configure IPv4 addresses. Womp womp.
 
 * Communication
     I am transmitting controller states using JSON packets over UDP.
