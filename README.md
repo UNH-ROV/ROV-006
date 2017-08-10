@@ -1,6 +1,9 @@
 # ROV-006
 This program drives 8 thrusters, a light, a pressure sensor, a salinity sensor, and two cameras, using a Raspberry Pi 3 and a PWM PiHat.
-This program was only tested in a Linux environment.
+The station program was only tested in a Linux environment.
+Here are a few modifications it will need to work in a Windows environment:
+* init windows event loop for asyncio
+* Replace xboxdrv with Windows driver and modify the relevant output loops
 
 ## Usage Notes
 Simply run the executables. In the terminal: `./rov.py` on the ROV and `./station.py` for the station.
@@ -21,7 +24,6 @@ The pin locations for many of the devices should also be changed should this be 
 * And others!
 
 # Additional Technical Notes
-
 The Raspberry Pi 3 uses Python3.4. As a result, the code in the ROV program uses the older asyncio syntax.
 To update to Python 3.5+, one can replace a couple of the old asyncio keywords:
 Replace `@asyncio.coroutine` with `async`. Replace `yield from` with `await`.
@@ -31,10 +33,10 @@ Assume all the commands below require root privileges so prepend `sudo` if you g
 I'll place the commands here in case someone needs to accomplish these things.
 ## Internet for the Pi
 I made the station a forwarder for ROV traffic.
-1. Create a default route to the station from the pi: `ip route add default via 192.168.0.14`
-2. Add dns server on pi: `sudo bash -c 'echo nameserver 8.8.8.8 >> /etc/resolv.conf`
-3. Configure station to forward traffic: `sysctl -w net.ipv4.ip_forward=1`
-4. Create a firewall rule to forward data to the wifi interface: `iptables -t nat -A POSTROUTING -o wlan0 -j MASQUERADE`
+1. `ip route add default via 192.168.0.14` Create a default route to the station from the pi.
+2. `sudo bash -c 'echo nameserver 8.8.8.8 >> /etc/resolv.conf` Add dns server on pi
+3. `sysctl -w net.ipv4.ip_forward=1` Configure station to forward traffic
+4. `iptables -t nat -A POSTROUTING -o wlan0 -j MASQUERADE` Create a firewall rule to forward data to the wifi interface
 
 After this you should be free to update the ROV, and push/pull code from github.
 
@@ -53,8 +55,8 @@ For the most part usbip should be available in the linux-generic-tools package w
 See the man pages for usage.
 
 These are the steps I took. They likely WON'T apply to other systems.
-1. On ROV start the usbipd (I'm sorry): `usbipd`
-2. On ROV list usb devices: `usbip list -l`
-3. On ROV, choose a device from the list and bind usb device: `usbip bind -b <busid>`
-4. On station: `modprobe vhci-hcd`
-5. On station mount the usb: `/usr/lib/linux-tools/$(uname -r)/usbip attach -r 192.168.0.15 -b 1-1.5
+1. `uspipd` On ROV, start usbipd (I'm sorry)
+2. `usbip list -l` On ROV, list usb devices
+3. `usbip bind -b <busid>` On ROV, choose a device from the list and bind usb device.
+4. `modprobe vhci-hcd` On station
+5. `/usr/lib/linux-tools/$(uname -r)/usbip attach -r 192.168.0.15 -b 1-1.5` On station, mount the usb
