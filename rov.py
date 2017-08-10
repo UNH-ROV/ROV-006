@@ -110,9 +110,15 @@ class TCP(asyncio.Protocol):
         elif data == 'auto':
             autonomy = not autonomy
         elif data.startswith('pid'):
-            pass
+            pid_values = json.loads(data[3:])
+            pid = hlcontroller.PID(p=pid_values['p'], i=pid_values['i'], d=pid_values['d'])
+            hlcontroller.change_controller(pid)
         elif data.startswith('lqr'):
-            pass
+            lqr_values = json.loads(data[3:])
+            q = numpy.identity(lqr_values['q'])
+            r = numpy.identity(lqr_values['r'])
+            lqr = hlcontroller.LQR(q=q, r=r)
+            hlcontroller.change_controller(lqr)
 
     def error_received(self, exc):
         print('TCP connection error:', exc)
