@@ -56,8 +56,6 @@ Arduino IDE : Select board "Arduino Pro or Pro Mini (3.3v, 8Mhz) w/ATmega328"
 #define OUTPUT__FORMAT_TEXT 0 // Outputs data as text
 #define OUTPUT__FORMAT_BINARY 1 // Outputs data as binary float
 
-// Accelerometer
-// "accel x,y,z (min/max) = X_MIN/X_MAX  Y_MIN/Y_MAX  Z_MIN/Z_MAX"
 #define ACCEL_X_MIN ((float) -265)
 #define ACCEL_X_MAX ((float) 256)
 #define ACCEL_Y_MIN ((float) -253)
@@ -72,22 +70,13 @@ Arduino IDE : Select board "Arduino Pro or Pro Mini (3.3v, 8Mhz) w/ATmega328"
 #define ACCEL_X_SCALE (GRAVITY / (ACCEL_X_MAX - ACCEL_X_OFFSET))
 #define ACCEL_Y_SCALE (GRAVITY / (ACCEL_Y_MAX - ACCEL_Y_OFFSET))
 #define ACCEL_Z_SCALE (GRAVITY / (ACCEL_Z_MAX - ACCEL_Z_OFFSET))
-
-// Gyroscope
-// "gyro x,y,z (current/average) = .../OFFSET_X  .../OFFSET_Y  .../OFFSET_Z
-#define GYRO_AVERAGE_OFFSET_X ((float) -48.1)
-#define GYRO_AVERAGE_OFFSET_Y ((float) 24.89)
-#define GYRO_AVERAGE_OFFSET_Z ((float) 1.21)
-
-// Gain for gyroscope (ITG-3200)
-#define GYRO_GAIN 0.06957 // Same gain on all axes
-#define GYRO_SCALED_RAD(x) (x * TO_RAD(GYRO_GAIN)) // Calculate the scaled gyro readings in radians per second
+#define GYRO_X_OFFSET ((float) 48.68)
+#define GYRO_Y_OFFSET ((float) -18.375)
+#define GYRO_Z_OFFSET ((float) -13.153)
 
 // Stuff
 #define STATUS_LED_PIN 13  // Pin number of status LED
 #define GRAVITY 256.0f // "1G reference" used for DCM filter and accelerometer calibration
-#define TO_RAD(x) (x * 0.01745329252)  // *pi/180
-#define TO_DEG(x) (x * 57.2957795131)  // *180/pi
 
 struct Vector3 {
     float x;
@@ -113,14 +102,15 @@ void sensors_read() {
  */
 void sensors_fix(struct Vector3 *accel_fixed, struct Vector3 *gyro_fixed) {
     // Compensate accelerometer error
+    // Sorry about the subtraction here.
     accel_fixed->x =  (accel.x - ACCEL_X_OFFSET) * ACCEL_X_SCALE;
     accel_fixed->y =  (accel.y - ACCEL_Y_OFFSET) * ACCEL_Y_SCALE;
     accel_fixed->z =  (accel.z - ACCEL_Z_OFFSET) * ACCEL_Z_SCALE;
 
     // Compensate gyroscope error
-    gyro_fixed->x = gyro.x - GYRO_AVERAGE_OFFSET_X;
-    gyro_fixed->y = gyro.y - GYRO_AVERAGE_OFFSET_Y;
-    gyro_fixed->z = gyro.z - GYRO_AVERAGE_OFFSET_Z;
+    gyro_fixed->x = gyro.x + GYRO_X_OFFSET;
+    gyro_fixed->y = gyro.y + GYRO_Y_OFFSET;
+    gyro_fixed->z = gyro.z + GYRO_Z_OFFSET;
 }
 
 // Prints the current values of the sensors
