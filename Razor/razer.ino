@@ -89,58 +89,69 @@ Arduino IDE : Select board "Arduino Pro or Pro Mini (3.3v, 8Mhz) w/ATmega328"
 #define TO_RAD(x) (x * 0.01745329252)  // *pi/180
 #define TO_DEG(x) (x * 57.2957795131)  // *180/pi
 
-// Sensor variables
-struct Accel {
-    // Actually stores the NEGATED acceleration (gravity if not moving)
+struct Vector3 {
     float x;
     float y;
     float z;
-} accel;
+};
 
-struct Gyro {
-    float x;
-    float y;
-    float z;
-} gyro;
+struct Vector3 accel, gyro;
 
 int output_format = OUTPUT__FORMAT_TEXT;
 
-void read_sensors() {
+void sensors_read() {
+    // These modify accel and gyro
     gyro_read();
     accel_read();
 }
 
-// Prints the current values of the sensors 
-void output_sensors()
-{
+/**
+ * Returns accel and gyro with all error_compensation.
+ * Error compensation includes using basic calibration values
+ * and any filters of interest.
+ */
+struct Vector3[2] sensors_fix() {
+    struct Vector3 accel_fixed, gyro_fixed;
+
     // Compensate accelerometer error
-    float accel_x = (accel.x - ACCEL_X_OFFSET) * ACCEL_X_SCALE;
-    float accel_y = (accel.y - ACCEL_Y_OFFSET) * ACCEL_Y_SCALE;
-    float accel_z = (accel.z - ACCEL_Z_OFFSET) * ACCEL_Z_SCALE;
+    accel_fixed.x =  (accel.x - ACCEL_X_OFFSET) * ACCEL_X_SCALE;
+    accel_fixed.y =  (accel.y - ACCEL_Y_OFFSET) * ACCEL_Y_SCALE;
+    accel_fixed.z =  (accel.z - ACCEL_Z_OFFSET) * ACCEL_Z_SCALE;
 
     // Compensate gyroscope error
-    float gyro_x = gyro.x - GYRO_AVERAGE_OFFSET_X;
-    float gyro_y = gyro.y - GYRO_AVERAGE_OFFSET_Y;
-    float gyro_z = gyro.z - GYRO_AVERAGE_OFFSET_Z;
+    gyro_fixed_x = gyro.x - GYRO_AVERAGE_OFFSET_X;
+    gyro_fixed_y = gyro.y - GYRO_AVERAGE_OFFSET_Y;
+    gyro_fixed_z = gyro.z - GYRO_AVERAGE_OFFSET_Z;
+
+    return { accel_fixed, gyro_fixed };
+
+}
+
+// Prints the current values of the sensors 
+void sensors_output()
+{
+    struct Vector3[2] corrected = sensors_fix();
+    struct Vector3 accel_out = corrected[0];
+    struct Vector3 gyro_out = corrected[1];
 
     if (output_format == OUTPUT__FORMAT_TEXT) {
         Serial.print("#A");
-        Serial.print(accel_x); Serial.print(",");
-        Serial.print(accel_y); Serial.print(",");
-        Serial.print(accel_z);
+        Serial.print(accel_out.x); Serial.print(",");
+        Serial.print(accel_out.y); Serial.print(",");
+        Serial.print(accel_out.z);
 
         Serial.print("#G");
-        Serial.print(gyro_x); Serial.print(",");
-        Serial.print(gyro_y); Serial.print(",");
-        Serial.print(gyro_z);
+        Serial.print(gyro_out.x); Serial.print(",");
+        Serial.print(gyro_out.y); Serial.print(",");
+        Serial.print(gyro_out.z);
     } else {
         // Structs are not denslyu packed.
-        Serial.write((byte *) accel.x, 4);
-        Serial.write((byte *) accel.y, 4);
-        Serial.write((byte *) accel.z, 4);
-        Serial.write((byte *) gyro.x, 4);
-        Serial.write((byte *) gyro.y, 4);
-        Serial.write((byte *) gyro.z, 4);
+        Serial.write((byte *) accel_out.x, 4);
+        Serial.write((byte *) accel_out.y, 4);
+        Serial.write((byte *) accel_out.z, 4);
+        Serial.write((byte *) gyro_out.x, 4);
+        Serial.write((byte *) gyro_out.y, 4);
+        Serial.write((byte *) gyro_out.z, 4);
     }
 }
 
@@ -161,7 +172,7 @@ void setup()
 
     // Read sensors to initialize state
     delay(20);  // Give sensors enough time to collect data
-    read_sensors();
+    sensors_read();
 }
 
 // Main loop
@@ -172,7 +183,7 @@ void loop()
         int command = Serial.read(); // Commands
         switch command {
             case 'f':
-                output_sensors();
+                sensors_output();
                 break;
             case 't':
                 output_format = OUTPUT__FORMAT_TEXT;
@@ -187,6 +198,6 @@ void loop()
 
     // Time to read the sensors again?
     if ((millis() - prev_time) >= READ_INTERVAL)
-        read_sensors(); // Update sensor reading.
+        sensors_read(); // Update sensor reading.
 
 }
