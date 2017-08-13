@@ -54,27 +54,30 @@ Arduino IDE : Select board "Arduino Pro or Pro Mini (3.3v, 8Mhz) w/ATmega328"
 #define OUTPUT__FORMAT_TEXT 0 // Outputs data as text
 #define OUTPUT__FORMAT_BINARY 1 // Outputs data as binary float
 
-#define ACCEL_X_MIN ((float) -265)
-#define ACCEL_X_MAX ((float) 256)
-#define ACCEL_Y_MIN ((float) -253)
-#define ACCEL_Y_MAX ((float) 264)
-#define ACCEL_Z_MIN ((float) -302)
-#define ACCEL_Z_MAX ((float) 214)
+// Values of gravity on the various axis, both + and -
+#define ACCEL_X_MIN -265
+#define ACCEL_X_MAX 256
+#define ACCEL_Y_MIN -253
+#define ACCEL_Y_MAX 264
+#define ACCEL_Z_MIN -302
+#define ACCEL_Z_MAX 214
 
-// Sensor calibration scale and offset values
-#define ACCEL_X_OFFSET ((ACCEL_X_MIN + ACCEL_X_MAX) / 2.0f)
-#define ACCEL_Y_OFFSET ((ACCEL_Y_MIN + ACCEL_Y_MAX) / 2.0f)
-#define ACCEL_Z_OFFSET ((ACCEL_Z_MIN + ACCEL_Z_MAX) / 2.0f)
-#define ACCEL_X_SCALE (GRAVITY / (ACCEL_X_MAX - ACCEL_X_OFFSET))
-#define ACCEL_Y_SCALE (GRAVITY / (ACCEL_Y_MAX - ACCEL_Y_OFFSET))
-#define ACCEL_Z_SCALE (GRAVITY / (ACCEL_Z_MAX - ACCEL_Z_OFFSET))
-#define GYRO_X_OFFSET (49.66)
-#define GYRO_Y_OFFSET (-18.375)
-#define GYRO_Z_OFFSET (-14.177)
+// Moves accelerometer output so that 0 is 0
+#define ACCEL_X_OFFSET ((ACCEL_X_MIN + ACCEL_X_MAX) / -2.0f)
+#define ACCEL_Y_OFFSET ((ACCEL_Y_MIN + ACCEL_Y_MAX) / -2.0f)
+#define ACCEL_Z_OFFSET ((ACCEL_Z_MIN + ACCEL_Z_MAX) / -2.0f)
+
+// Scales accelerometer output so that ACCEL_X_MAX is GRAVITY
+#define ACCEL_X_SCALE (GRAVITY / (ACCEL_X_MAX + ACCEL_X_OFFSET))
+#define ACCEL_Y_SCALE (GRAVITY / (ACCEL_Y_MAX + ACCEL_Y_OFFSET))
+#define ACCEL_Z_SCALE (GRAVITY / (ACCEL_Z_MAX + ACCEL_Z_OFFSET))
+#define GYRO_X_OFFSET (-49.66)
+#define GYRO_Y_OFFSET (18.375)
+#define GYRO_Z_OFFSET (14.177)
 
 // Stuff
 #define STATUS_LED_PIN 13  // Pin number of status LED
-#define GRAVITY 256.0f // "1G reference"
+#define GRAVITY 256.0f // "1G reference". Direction not included.
 
 struct Vector3 {
     float x;
@@ -93,11 +96,12 @@ int prev_time;
  * and any filters of interest.
  */
 void sensors_fix() {
+    // In the future one should compensate for ROV axis here
+    // For now I'll just flip the z axis
     // Compensate accelerometer error
-    // Sorry about the subtraction here.
-    accel.x =  (accel.x - ACCEL_X_OFFSET) * ACCEL_X_SCALE;
-    accel.y =  (accel.y - ACCEL_Y_OFFSET) * ACCEL_Y_SCALE;
-    accel.z =  (accel.z - ACCEL_Z_OFFSET) * ACCEL_Z_SCALE;
+    accel.x =  (accel.x + ACCEL_X_OFFSET) * ACCEL_X_SCALE;
+    accel.y =  (accel.y + ACCEL_Y_OFFSET) * ACCEL_Y_SCALE;
+    accel.z =  -1.0 * (accel.z + ACCEL_Z_OFFSET) * ACCEL_Z_SCALE;
 
     // Compensate gyroscope error
     gyro.x = gyro.x + GYRO_X_OFFSET;

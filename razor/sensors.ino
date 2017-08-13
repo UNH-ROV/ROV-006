@@ -58,8 +58,6 @@ struct Vector3 accel_read()
     }
 
     if (i == 6) { // All bytes received?
-        // No multiply by -1 for coordinate system transformation here, because of double negation:
-        // We want the gravity vector, which is negated acceleration vector.
         reading.x = (int16_t)((((uint16_t) buff[3]) << 8) | buff[2]);  // X axis (internal sensor y axis)
         reading.y = (int16_t)((((uint16_t) buff[1]) << 8) | buff[0]);  // Y axis (internal sensor x axis)
         reading.z = (int16_t)((((uint16_t) buff[5]) << 8) | buff[4]);  // Z axis (internal sensor z axis)
@@ -119,9 +117,9 @@ struct Vector3 gyro_read()
     }
 
     if (i == 6) { // All bytes received?
-        reading.x = -1 * (int16_t)(((((uint16_t) buff[2]) << 8) | buff[3]));    // X axis (internal sensor -y axis)
-        reading.y = -1 * (int16_t)(((((uint16_t) buff[0]) << 8) | buff[1]));    // Y axis (internal sensor -x axis)
-        reading.z = -1 * (int16_t)(((((uint16_t) buff[4]) << 8) | buff[5]));    // Z axis (internal sensor -z axis)
+        reading.x = (int16_t)(((((uint16_t) buff[2]) << 8) | buff[3]));    // X axis (internal sensor y axis)
+        reading.y = (int16_t)(((((uint16_t) buff[0]) << 8) | buff[1]));    // Y axis (internal sensor x axis)
+        reading.z = (int16_t)(((((uint16_t) buff[4]) << 8) | buff[5]));    // Z axis (internal sensor z axis)
     } else {
         // Gyro error!
     }
