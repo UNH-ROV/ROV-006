@@ -52,13 +52,10 @@ struct Vector3 accel_read()
     WIRE_SEND(0x32);  // Send address to read from
     Wire.endTransmission();
 
-    Wire.beginTransmission(ACCEL_ADDRESS);
     Wire.requestFrom(ACCEL_ADDRESS, 6);  // Request 6 bytes
-    while(Wire.available()) { // ((Wire.available())&&(i<6))
-        buff[i] = WIRE_RECEIVE();  // Read one byte
-        i++;
+    while (Wire.available()) {
+        buff[i++] = WIRE_RECEIVE();
     }
-    Wire.endTransmission();
 
     if (i == 6) { // All bytes received?
         // No multiply by -1 for coordinate system transformation here, because of double negation:
@@ -116,13 +113,10 @@ struct Vector3 gyro_read()
     WIRE_SEND(0x1D);  // Sends address to read from
     Wire.endTransmission();
 
-    Wire.beginTransmission(GYRO_ADDRESS);
     Wire.requestFrom(GYRO_ADDRESS, 6);  // Request 6 bytes
-    while(Wire.available()) { // ((Wire.available())&&(i<6))
-        buff[i] = WIRE_RECEIVE();  // Read one byte
-        i++;
+    while (Wire.available()) {
+        buff[i++] = WIRE_RECEIVE();
     }
-    Wire.endTransmission();
 
     if (i == 6) { // All bytes received?
         reading.x = -1 * (int16_t)(((((uint16_t) buff[2]) << 8) | buff[3]));    // X axis (internal sensor -y axis)
