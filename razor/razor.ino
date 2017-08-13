@@ -174,14 +174,13 @@ void loop()
     if (Serial.available() >= 2 && Serial.read() == '#') {
         int command = Serial.read(); // Commands
         switch(command) {
-            case 'f':
-                sensors_output();
-                break;
             case 't':
                 output_format = OUTPUT__FORMAT_TEXT;
+                sensors_output();
                 break;
             case 'b':
                 output_format = OUTPUT__FORMAT_BINARY;
+                sensors_output();
                 break;
             default:
                 break;

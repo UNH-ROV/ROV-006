@@ -14,13 +14,8 @@
 
    Serial commands that the firmware understands:
    "#b" - Output sensors in BINARY format - acc, gyro (3 floats for each sensor so output frame is 24 bytes)
-   "#t" - Output angles in TEXT format (Output frames have form like "#ACC=-142.28,-5.38,33.52#GYR=-142.28,-5.38,33.52#GYR
+   "#t" - Output angles in TEXT format (Output frames have form like "#A142.28,-5.38,33.52#G-142.28,-5.38,33.52
    followed by carriage return and line feed [\r\n]).
-
-   "#f" - Request one output frame - Sensors only update internally every 20ms(50Hz)
-
-   Newline characters are not required. So you could send "#b#f", which
-   would set binary output mode, and fetch
 
    Byte order of binary output is little-endian: least significant byte comes first.
 """
@@ -38,14 +33,11 @@ class IMU(serial.Serial):
         serial.Serial.__init__(self, dev, rate)
         time.sleep(2) # This should be more than 1 second.
 
-        self.write(b'#b')
-        self.flush()
         self.flushInput() # Deprecated 
         #self.reset_input_buffers() New version
 
     def read_bin(self):
-        """ Expects the sensor to output binary data. """
-        self.write(b'#f')
+        self.write(b'#b')
         self.flush()
         time.sleep(WRITE_WAIT)
 
@@ -56,7 +48,7 @@ class IMU(serial.Serial):
 
     def read_text(self):
         """ Briefly enters text output and returns reply."""
-        self.write(b'#t#f#b')
+        self.write(b'#t')
         self.flush()
         time.sleep(WRITE_WAIT)
 
