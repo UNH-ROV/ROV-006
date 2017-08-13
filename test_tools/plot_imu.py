@@ -9,7 +9,7 @@ from devices.imu import IMU
 SERIAL_DEV = '/dev/ttyUSB0'
 SERIAL_BAUD = 57600
 DATA_POINTS = 150
-AVG_COUNT = 30
+AVG_COUNT = 17
 
 prev_data_points = collections.deque(maxlen=AVG_COUNT)
 
@@ -40,11 +40,11 @@ if __name__ == '__main__':
 
     start_time = time.time()
     for i in range(0, DATA_POINTS):
-        accel, gyro = imu.read_bin()
+        accel, gyro = imu.get_sensors()
 
-        accel_data[0].append(accel[0])
-        accel_data[1].append(accel[1])
-        accel_data[2].append(accel[2])
+        accel_data[0].append(gyro[0])
+        accel_data[1].append(gyro[1])
+        accel_data[2].append(gyro[2])
         prev_data_points.append(accel)
 
         if i >= AVG_COUNT:

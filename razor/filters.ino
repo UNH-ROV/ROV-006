@@ -9,24 +9,24 @@
 // These data structures assume we start at 0 acceleration
 struct Vector3 prev_data[ROLLING_AVG_COUNT] = {{ }};
 struct Vector3 prev_sum = {};
-int prev_accel_idx = 0;
+int prev_idx = 0;
 
 /**
- * Updates prev_accel_data with new_data and returns new average.
- * Treats prev_accel_data like a ring buffer.
+ * Updates prev_data with new_data and returns new average.
+ * Treats prev_data like a ring buffer.
  * Stateful.
  */
 struct Vector3 rolling_average(struct Vector3 new_data)
 {
-    struct Vector3 popped_data = prev_accel_data[prev_accel_idx];
-    prev_accel_data[prev_accel_idx++] = new_data;
-    prev_accel_idx %= ROLLING_AVG_COUNT;
+    struct Vector3 popped_data = prev_data[prev_idx];
+    prev_data[prev_idx++] = new_data;
+    prev_idx %= ROLLING_AVG_COUNT;
 
-    prev_accel_sum.x += new_data.x - popped_data.x;
-    prev_accel_sum.y += new_data.y - popped_data.y;
-    prev_accel_sum.z += new_data.z - popped_data.z;
+    prev_sum.x += new_data.x - popped_data.x;
+    prev_sum.y += new_data.y - popped_data.y;
+    prev_sum.z += new_data.z - popped_data.z;
 
-    struct Vector3 out = prev_accel_sum;
+    struct Vector3 out = prev_sum;
     out.x /= ROLLING_AVG_COUNT;
     out.y /= ROLLING_AVG_COUNT;
     out.z /= ROLLING_AVG_COUNT;
@@ -34,32 +34,35 @@ struct Vector3 rolling_average(struct Vector3 new_data)
 }
 
 // ---------------------- COMPLEMENTARY  -------------------------
-#define ACCELEROMETER_SENSITIVITY 8192.0
-#define GYROSCOPE_SENSITIVITY 65.536
+// Uses gyro and accel data to determine angle deltas.
+// 256 = 1G
+#define ACCEL_THRESHOLD 128.0
+#define GYRO_SCALE 1.0
+
+#define ACCEL_WEIGHT 0.02
+#define GYRO_WEIGHT (1.0 - ACCEL_WEIGHT)
 
 #define M_PI 3.14159265359
+#define dt (READ_INTERVAL / 1000.0)
 
-#define dt 0.01							// 10 ms sample rate!
-
-void ComplementaryFilter(short accData[3], short gyrData[3], float *pitch, float *roll)
-
-    float pitchAcc, rollAcc;
+void complementary(const struct Vector3 accel,
+                   const struct Vector3 gyro,
+                   float *pitch, float *roll) {
+    float pitch_acc, roll_acc;
 
     // Integrate the gyroscope data -> int(angularSpeed) = angle
-    *pitch += ((float)gyrData[0] / GYROSCOPE_SENSITIVITY) * dt; // Angle around the X-axis
-    *roll -= ((float)gyrData[1] / GYROSCOPE_SENSITIVITY) * dt;    // Angle around the Y-axis
+    *pitch += (gyro.x / GYRO_SCALE) * dt; // Angle around the X-axis
+    *roll += (gyro.y / GYRO_SCALE) * dt;  // Angle around the Y-axis
 
-    // Compensate for drift with accelerometer data if !bullshit
-    // Sensitivity = -2 to 2 G at 16Bit -> 2G = 32768 && 0.5G = 8192
-    int forceMagnitudeApprox = abs(accData[0]) + abs(accData[1]) + abs(accData[2]);
-    if (forceMagnitudeApprox > 8192 && forceMagnitudeApprox < 32768)
-    {
+    // Compensate for drift with accelerometer data
+    float accel_magnitude_approx = abs(accel.x) + abs(accel.y) + abs(accel.z);
+    if (accel_magnitude_approx > ACCEL_THRESHOLD) {
 	// Turning around the X axis results in a vector on the Y-axis
-        pitchAcc = atan2f((float)accData[1], (float)accData[2]) * 180 / M_PI;
-        *pitch = *pitch * 0.98 + pitchAcc * 0.02;
+        pitch_acc = atan2f(accel.y, accel.z);
+        *pitch = *pitch * GYRO_WEIGHT + pitch_acc * ACCEL_WEIGHT;
 
 	// Turning around the Y axis results in a vector on the X-axis
-        rollAcc = atan2f((float)accData[0], (float)accData[2]) * 180 / M_PI;
-        *roll = *roll * 0.98 + rollAcc * 0.02;
+        roll_acc = atan2f(accel.x, accel.z);
+        *roll = *roll * GYRO_WEIGHT + roll_acc * ACCEL_WEIGHT;
     }
-} 
+}

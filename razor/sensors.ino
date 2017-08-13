@@ -1,5 +1,3 @@
-/* This file is part of the Razor AHRS Firmware */
-
 // I2C code to read the sensors
 
 // Sensor I2C addresses
@@ -44,8 +42,9 @@ void accel_init()
 }
 
 // Reads x, y and z accelerometer registers
-void accel_read()
+struct Vector3 accel_read()
 {
+    struct Vector3 reading = {};
     int i = 0;
     uint8_t buff[6];
 
@@ -64,12 +63,14 @@ void accel_read()
     if (i == 6) { // All bytes received?
         // No multiply by -1 for coordinate system transformation here, because of double negation:
         // We want the gravity vector, which is negated acceleration vector.
-        accel.x = (int16_t)((((uint16_t) buff[3]) << 8) | buff[2]);  // X axis (internal sensor y axis)
-        accel.y = (int16_t)((((uint16_t) buff[1]) << 8) | buff[0]);  // Y axis (internal sensor x axis)
-        accel.z = (int16_t)((((uint16_t) buff[5]) << 8) | buff[4]);  // Z axis (internal sensor z axis)
+        reading.x = (int16_t)((((uint16_t) buff[3]) << 8) | buff[2]);  // X axis (internal sensor y axis)
+        reading.y = (int16_t)((((uint16_t) buff[1]) << 8) | buff[0]);  // Y axis (internal sensor x axis)
+        reading.z = (int16_t)((((uint16_t) buff[5]) << 8) | buff[4]);  // Z axis (internal sensor z axis)
     } else {
         // Error reading accelerometer
     }
+
+    return reading;
 }
 
 void gyro_init()
@@ -105,8 +106,9 @@ void gyro_init()
 }
 
 // Reads x, y and z gyroscope registers
-void gyro_read()
+struct Vector3 gyro_read()
 {
+    struct Vector3 reading = {};
     int i = 0;
     uint8_t buff[6];
 
@@ -123,10 +125,12 @@ void gyro_read()
     Wire.endTransmission();
 
     if (i == 6) { // All bytes received?
-        gyro.x = -1 * (int16_t)(((((uint16_t) buff[2]) << 8) | buff[3]));    // X axis (internal sensor -y axis)
-        gyro.y = -1 * (int16_t)(((((uint16_t) buff[0]) << 8) | buff[1]));    // Y axis (internal sensor -x axis)
-        gyro.z = -1 * (int16_t)(((((uint16_t) buff[4]) << 8) | buff[5]));    // Z axis (internal sensor -z axis)
+        reading.x = -1 * (int16_t)(((((uint16_t) buff[2]) << 8) | buff[3]));    // X axis (internal sensor -y axis)
+        reading.y = -1 * (int16_t)(((((uint16_t) buff[0]) << 8) | buff[1]));    // Y axis (internal sensor -x axis)
+        reading.z = -1 * (int16_t)(((((uint16_t) buff[4]) << 8) | buff[5]));    // Z axis (internal sensor -z axis)
     } else {
         // Gyro error!
     }
+
+    return reading;
 }

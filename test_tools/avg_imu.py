@@ -17,7 +17,7 @@ if __name__ == '__main__':
     avg_gyro = [0.0, 0.0, 0.0]
     count = 0
     while True:
-        accel, gyro = imu.read_bin()
+        accel, gyro = imu.get_sensors()
 
         avg_accel = [ (avg * count + new) / (count + 1) for avg, new in zip(avg_accel, accel)]
         avg_gyro = [ (avg * count + new) / (count + 1) for avg, new in zip(avg_gyro, gyro)]

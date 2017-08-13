@@ -34,13 +34,11 @@ Arduino IDE : Select board "Arduino Pro or Pro Mini (3.3v, 8Mhz) w/ATmega328"
 /*
    Serial commands that the firmware understands:
    "#b" - Output sensors in BINARY format - acc, gyro (3 floats for each sensor so output frame is 24 bytes)
-   "#t" - Output angles in TEXT format (Output frames have form like "#ACC=-142.28,-5.38,33.52#GYR=-142.28,-5.38,33.52#GYR
+   "#t" - Output sensors in TEXT format (Output has the form "#ACC=-142.28,-5.38,33.52#GYR=-142.28,-5.38,33.52"
    followed by carriage return and line feed [\r\n]).
+   "#a" - Output angle
 
-   "#f" - Request one output frame - Sensors only update internally every 20ms(50Hz)
-
-   Newline characters are not required. So you could send "#b#f", which
-   would set binary output mode, and fetch
+   Newline characters are not required. So you can send #b#a to get sensor and angle data.
 
    Byte order of binary output is little-endian: least significant byte comes first.
  */
@@ -70,13 +68,13 @@ Arduino IDE : Select board "Arduino Pro or Pro Mini (3.3v, 8Mhz) w/ATmega328"
 #define ACCEL_X_SCALE (GRAVITY / (ACCEL_X_MAX - ACCEL_X_OFFSET))
 #define ACCEL_Y_SCALE (GRAVITY / (ACCEL_Y_MAX - ACCEL_Y_OFFSET))
 #define ACCEL_Z_SCALE (GRAVITY / (ACCEL_Z_MAX - ACCEL_Z_OFFSET))
-#define GYRO_X_OFFSET ((float) 48.68)
-#define GYRO_Y_OFFSET ((float) -18.375)
-#define GYRO_Z_OFFSET ((float) -13.153)
+#define GYRO_X_OFFSET (49.66)
+#define GYRO_Y_OFFSET (-18.375)
+#define GYRO_Z_OFFSET (-14.177)
 
 // Stuff
 #define STATUS_LED_PIN 13  // Pin number of status LED
-#define GRAVITY 256.0f // "1G reference" used for DCM filter and accelerometer calibration
+#define GRAVITY 256.0f // "1G reference"
 
 struct Vector3 {
     float x;
@@ -84,41 +82,48 @@ struct Vector3 {
     float z;
 };
 
-struct Vector3 accel, gyro;
+struct Vector3 accel, gyro, angle;
 
 int output_format = OUTPUT__FORMAT_TEXT;
 int prev_time;
 
-void sensors_read() {
-    // These modify accel and gyro
-    gyro_read();
-    accel_read();
-}
-
 /**
- * modifies accel_fixed and gyro_fixed with all error_compensation.
+ * modifies accel and gyro with all error_compensation.
  * Error compensation includes using basic calibration values
  * and any filters of interest.
  */
-void sensors_fix(struct Vector3 *accel_fixed, struct Vector3 *gyro_fixed) {
+void sensors_fix() {
     // Compensate accelerometer error
     // Sorry about the subtraction here.
-    accel_fixed->x =  (accel.x - ACCEL_X_OFFSET) * ACCEL_X_SCALE;
-    accel_fixed->y =  (accel.y - ACCEL_Y_OFFSET) * ACCEL_Y_SCALE;
-    accel_fixed->z =  (accel.z - ACCEL_Z_OFFSET) * ACCEL_Z_SCALE;
+    accel.x =  (accel.x - ACCEL_X_OFFSET) * ACCEL_X_SCALE;
+    accel.y =  (accel.y - ACCEL_Y_OFFSET) * ACCEL_Y_SCALE;
+    accel.z =  (accel.z - ACCEL_Z_OFFSET) * ACCEL_Z_SCALE;
 
     // Compensate gyroscope error
-    gyro_fixed->x = gyro.x + GYRO_X_OFFSET;
-    gyro_fixed->y = gyro.y + GYRO_Y_OFFSET;
-    gyro_fixed->z = gyro.z + GYRO_Z_OFFSET;
+    gyro.x = gyro.x + GYRO_X_OFFSET;
+    gyro.y = gyro.y + GYRO_Y_OFFSET;
+    gyro.z = gyro.z + GYRO_Z_OFFSET;
 }
+
+void sensors_read() {
+    gyro = gyro_read();
+    accel = accel_read();
+
+    sensors_fix();
+}
+
+
+void angle_update()
+{
+    //complementary(accel, gyro, &(angle.x), &(angle.y));
+}
+
 
 // Prints the current values of the sensors
 void sensors_output()
 {
     struct Vector3 accel_out = accel;
     struct Vector3 gyro_out = gyro;
-    sensors_fix(&accel_out, &gyro_out);
 
     //accel_out = rolling_accel(accel_out);
     //gyro_out = rolling_gyro(gyro_out);
@@ -146,6 +151,24 @@ void sensors_output()
     }
 }
 
+// Prints the current angle
+// This will be relative to initial starting orientation.
+void angle_output() {
+    if (output_format == OUTPUT__FORMAT_TEXT) {
+        Serial.print("#YPR");
+        Serial.print(angle.x); Serial.print(",");
+        Serial.print(angle.y); Serial.print(",");
+        Serial.print(angle.z);
+
+        Serial.print("\r\n");
+    } else {
+        Serial.write((byte *) &angle.x, 4);
+        Serial.write((byte *) &angle.y, 4);
+        Serial.write((byte *) &angle.z, 4);
+    }
+}
+
+
 void setup()
 {
     // Init serial output
@@ -160,6 +183,9 @@ void setup()
     i2c_init();
     accel_init();
     gyro_init();
+
+    // Initialize state
+    angle = { 0, 0, 0 };
 
     // Read sensors to initialize state
     delay(20);  // Give sensors enough time to collect data
@@ -176,11 +202,15 @@ void loop()
         switch(command) {
             case 't':
                 output_format = OUTPUT__FORMAT_TEXT;
-                sensors_output();
                 break;
             case 'b':
                 output_format = OUTPUT__FORMAT_BINARY;
+                break;
+            case 's':
                 sensors_output();
+                break;
+            case 'a':
+                angle_output();
                 break;
             default:
                 break;
@@ -189,8 +219,9 @@ void loop()
 
     // Time to read the sensors again?
     int curr_time = millis();
-    if ((curr_time - prev_time) >= READ_INTERVAL)
+    if ((curr_time - prev_time) >= READ_INTERVAL) {
         prev_time = curr_time;
-        sensors_read(); // Update sensor reading.
-
+        sensors_read();
+        //angle_update();
+    }
 }
