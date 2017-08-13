@@ -15,10 +15,9 @@ SERIAL_BAUD = 57600
 class IMU(serial.Serial):
     def __init__(self, dev, rate):
         serial.Serial.__init__(self, dev, rate)
-        self.mode_bin()
-
         time.sleep(2) # This should be more than 1 second.
 
+        self.mode_bin()
         self.flushInput() # Deprecated 
         #self.reset_input_buffers() New version
 
