@@ -49,6 +49,7 @@ Arduino IDE : Select board "Arduino Pro or Pro Mini (3.3v, 8Mhz) w/ATmega328"
 // This may not work, if faster than 20ms (=50Hz)
 // Code is tuned for 20ms, so better leave it like that
 #define READ_INTERVAL 20  // milliseconds
+#define DELTA_TIME (READ_INTERVAL / 1000.0)
 
 // Output format definitions (do not change)
 #define OUTPUT__FORMAT_TEXT 0 // Outputs data as text
@@ -71,9 +72,13 @@ Arduino IDE : Select board "Arduino Pro or Pro Mini (3.3v, 8Mhz) w/ATmega328"
 #define ACCEL_X_SCALE (GRAVITY / (ACCEL_X_MAX + ACCEL_X_OFFSET))
 #define ACCEL_Y_SCALE (GRAVITY / (ACCEL_Y_MAX + ACCEL_Y_OFFSET))
 #define ACCEL_Z_SCALE (GRAVITY / (ACCEL_Z_MAX + ACCEL_Z_OFFSET))
+
 #define GYRO_X_OFFSET (-49.66)
 #define GYRO_Y_OFFSET (18.375)
 #define GYRO_Z_OFFSET (14.177)
+
+// Obtained from docs(Sensitivity Scale Factor). Converts gyro output to deg/s
+#define GYRO_SCALE (-14.375)
 
 // Stuff
 #define STATUS_LED_PIN 13  // Pin number of status LED
@@ -104,9 +109,9 @@ void sensors_fix() {
     accel.z =  -1.0 * (accel.z + ACCEL_Z_OFFSET) * ACCEL_Z_SCALE;
 
     // Compensate gyroscope error
-    gyro.x = gyro.x + GYRO_X_OFFSET;
-    gyro.y = gyro.y + GYRO_Y_OFFSET;
-    gyro.z = gyro.z + GYRO_Z_OFFSET;
+    gyro.x = (gyro.x + GYRO_X_OFFSET) / GYRO_SCALE;
+    gyro.y = (gyro.y + GYRO_Y_OFFSET) / GYRO_SCALE;
+    gyro.z = (gyro.z + GYRO_Z_OFFSET) / GYRO_SCALE;
 }
 
 void sensors_read() {
@@ -119,6 +124,9 @@ void sensors_read() {
 
 void angle_update()
 {
+    angle.x += gyro.x * DELTA_TIME;
+    angle.y += gyro.y * DELTA_TIME;
+    angle.z += gyro.z * DELTA_TIME;
     //complementary(accel, gyro, &(angle.x), &(angle.y));
 }
 
@@ -226,6 +234,6 @@ void loop()
     if ((curr_time - prev_time) >= READ_INTERVAL) {
         prev_time = curr_time;
         sensors_read();
-        //angle_update();
+        angle_update();
     }
 }

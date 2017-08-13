@@ -43,7 +43,6 @@ struct Vector3 rolling_average(struct Vector3 new_data)
 #define GYRO_WEIGHT (1.0 - ACCEL_WEIGHT)
 
 #define M_PI 3.14159265359
-#define dt (READ_INTERVAL / 1000.0)
 
 void complementary(const struct Vector3 accel,
                    const struct Vector3 gyro,
@@ -51,8 +50,8 @@ void complementary(const struct Vector3 accel,
     float pitch_acc, roll_acc;
 
     // Integrate the gyroscope data -> int(angularSpeed) = angle
-    *pitch += (gyro.x / GYRO_SCALE) * dt; // Angle around the X-axis
-    *roll += (gyro.y / GYRO_SCALE) * dt;  // Angle around the Y-axis
+    *pitch += (gyro.x / GYRO_SCALE) * DELTA_TIME; // Angle around the X-axis
+    *roll += (gyro.y / GYRO_SCALE) * DELTA_TIME;  // Angle around the Y-axis
 
     // Compensate for drift with accelerometer data
     float accel_magnitude_approx = abs(accel.x) + abs(accel.y) + abs(accel.z);

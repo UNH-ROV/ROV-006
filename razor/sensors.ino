@@ -85,17 +85,10 @@ void gyro_init()
     Wire.endTransmission();
     delay(5);
 
-    // Set sample rato to 50Hz
+    // Set sample rate to ~90Hz
     Wire.beginTransmission(GYRO_ADDRESS);
     WIRE_SEND(0x15);
-    WIRE_SEND(0x0A);  //  SMPLRT_DIV = 10 (50Hz)
-    Wire.endTransmission();
-    delay(5);
-
-    // Set clock to PLL with z gyro reference
-    Wire.beginTransmission(GYRO_ADDRESS);
-    WIRE_SEND(0x3E);
-    WIRE_SEND(0x00);
+    WIRE_SEND(0x0A);  //  SMPLRT_DIV = 10
     Wire.endTransmission();
     delay(5);
 }
