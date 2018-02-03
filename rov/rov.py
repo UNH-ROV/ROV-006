@@ -195,7 +195,7 @@ def auto_loop(interval, thrusters):
     while True:
         yield from asyncio.sleep(interval / 1000.0)
 
-        accel, mag, gyro = imu.get_sensors()
+        accel, gyro = imu.get_sensors()
         accel = remove_gravity(accel)
 
         weights = hlcontroller.update(accel, gyro)
