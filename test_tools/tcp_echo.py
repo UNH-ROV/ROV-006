@@ -1,5 +1,7 @@
-# Simple TCP Echo Server
-# Essentially a dummy ROV to test simple connections with the station.
+"""
+Simple TCP Echo Server
+Essentially a dummy ROV to test simple connections with the station.
+"""
 import socket
 
 IP = '192.168.0.14'

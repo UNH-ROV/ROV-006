@@ -32,5 +32,5 @@ if __name__ == '__main__':
         velocity = [x * dt for x in accel]
         orientation = [x * dt for x in gyro]
 
-        # Sleeps for 21ms, approximately 50Hz 
+        # Sleeps for 21ms, approximately 50Hz
         time.sleep(0.021)

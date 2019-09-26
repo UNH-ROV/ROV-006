@@ -13,10 +13,13 @@ import signal
 import time
 import socket
 import json
-import gbulb
-gbulb.install()
-
-from gtkpanel import ROVPanel
+try:
+    import gbulb
+    gbulb.install()
+    from gtkpanel import ROVPanel
+except ImportError as e:
+    print(e)
+    print("Starting station without GUI")
 
 PORT=30002
 TARGET_ADDR="192.168.0.15"
@@ -124,7 +127,20 @@ def req_auto():
 async def controller_poll():
     """Read xbox controller information.
     """
-    joy = await Joystick.create(normalize=True)
+    joy = None
+    while joy is None:
+        await asyncio.sleep(3)
+        try:
+            joy = await Joystick.create(normalize=True)
+        except FileNotFoundError as e:
+            print(e)
+            print("xboxdrv is missing. Perhaps run 'sudo apt install xboxdrv'")
+            exit(1)
+        except OSError as e:
+            print(str(e).strip())
+            print("Retrying connection to Xbox controller...")
+
+
     joy.on_button(Button.LStick, stick_l)
     joy.on_button(Button.RStick, stick_r)
     joy.on_button(Button.LTrigger, trig_l)
@@ -178,7 +194,10 @@ if __name__ == "__main__":
     transport, protocol = loop.run_until_complete(udp)
 
     # Init ROV Panel
-    win = ROVPanel(rov_tcp_sock)
+    try:
+        win = ROVPanel(rov_tcp_sock)
+    except NameError:
+        pass # No GUI available.
 
     tasks = [
         asyncio.ensure_future(tcp_retry()),

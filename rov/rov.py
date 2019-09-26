@@ -214,6 +214,7 @@ def auto_loop(interval, thrusters):
         #print("Acc: {}".format(accel))
         #print("Vel: {}".format(hlcontroller.velocity * ACCEL_CONVERSION))
         #print("Pos: {}".format(hlcontroller.position * ACCEL_CONVERSION))
+        #print("Hi")
 
 if __name__ == "__main__":
     loop = asyncio.get_event_loop()

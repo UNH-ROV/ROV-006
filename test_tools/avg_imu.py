@@ -1,5 +1,6 @@
 """
-Output the average of data points
+Output the average of data points.
+Note that this is an average of all datapoints.
 """
 import time
 import random
